@@ -2,7 +2,6 @@
 
 export async function downloadPdf(element: HTMLElement, filename: string) {
   // html2pdf.js is CJS + browser-only; dynamic import keeps it out of SSR
-  // @ts-expect-error no types shipped
   const html2pdf = (await import("html2pdf.js")).default;
   const opt = {
     margin: 0,
