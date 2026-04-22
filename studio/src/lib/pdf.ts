@@ -11,7 +11,7 @@ export async function downloadPdf(element: HTMLElement, filename: string) {
     jsPDF: { unit: "mm", format: "a4", orientation: "portrait" as const },
     pagebreak: { mode: ["avoid-all", "css", "legacy"] },
   };
-  await html2pdf().set(opt).from(element).save();
+  await html2pdf().set(opt as any).from(element).save();
 }
 
 export function triggerPrint() {
