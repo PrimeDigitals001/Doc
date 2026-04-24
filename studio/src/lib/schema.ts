@@ -10,7 +10,10 @@ export type Party = {
 
 export type Item = {
   id: string;
-  desc: string;
+  /** Backward-compat single-line fallback; prefer `title` + `sub`. */
+  desc?: string;
+  title: string;
+  sub: string;
   qty: number;
   rate: number;
 };
@@ -29,6 +32,43 @@ export type Clause = {
 
 export type WatermarkPos = "br" | "bl" | "none";
 
+export type PaymentDetails = {
+  upiId: string;
+  bankAccount: string;
+  bankIfsc: string;
+  advancePaid: number;
+  thankYouNote: string;
+  contactPhone: string;
+  contactEmail: string;
+};
+
+export type BandControls = {
+  // Top band
+  topHeight: number;       // px, height of the top band itself
+  topOffsetX: number;      // px, nudge whole top band left(-) / right(+)
+  topOffsetY: number;      // px, nudge whole top band up(-) / down(+)
+
+  // Logo within the top band
+  topLogoLeft: number;     // px, logo X (from left edge of band)
+  topLogoTop: number;      // px, logo Y (from vertical center; 0 = centered)
+  topLogoSize: number;     // px, logo height
+
+  // Title within the top band
+  topTitleRight: number;   // px, title X (from right edge of band)
+  topTitleTop: number;     // px, title Y (from vertical center; 0 = centered)
+  topTitleSize: number;    // px, title font size
+
+  // Bottom band
+  bottomHeight: number;
+  bottomOffsetX: number;
+  bottomOffsetY: number;
+
+  // Logomark (stamp) on last page
+  stampSize: number;       // px, width/height (default 96)
+  stampOffsetX: number;    // px, shift left(-) / right(+)
+  stampOffsetY: number;    // px, shift up(-) / down(+)
+};
+
 export type Doc = {
   id: string;
   type: DocType;
@@ -37,6 +77,7 @@ export type Doc = {
     date: string;   // ISO yyyy-mm-dd
     validity?: string;
     subject: string; // client-facing subtitle (e.g. "Project Proposal")
+    attn?: string;   // "Attn: Mr. ..." line
   };
   parties: { from: Party; to: Party };
   money: {
@@ -46,6 +87,8 @@ export type Doc = {
   };
   items: Item[];          // used by quotation/invoice
   clauses: Clause[];
+  payment: PaymentDetails;
+  bands: BandControls;
   signature: {
     name: string;
     role: string;
@@ -142,8 +185,20 @@ export function makeDefaultDoc(type: DocType): Doc {
     },
     items: HAS_ITEMS[type]
       ? [
-          { id: makeId(), desc: "Landing page design & build", qty: 1, rate: 80000 },
-          { id: makeId(), desc: "Brand guideline booklet", qty: 1, rate: 35000 },
+          {
+            id: makeId(),
+            title: "Web Development",
+            sub: "30+ page responsive website with UI/UX design",
+            qty: 1,
+            rate: 42200,
+          },
+          {
+            id: makeId(),
+            title: "Branding",
+            sub: "Logo (with concepts & unlimited revisions), Flyer,\n2 Business Profile, Visiting card design",
+            qty: 1,
+            rate: 12500,
+          },
         ]
       : [],
     clauses:
@@ -174,11 +229,37 @@ export function makeDefaultDoc(type: DocType): Doc {
               bodyHtml: "<p>Estimated delivery within 4 weeks of confirmed brief.</p>",
             },
           ],
-    signature: {
-      name: "Krish Thakkar",
-      role: "Authorised Signatory · Prime Digitals",
+    payment: {
+      upiId: "9316715060",
+      bankAccount: "50100750274961",
+      bankIfsc: "HDFC0001450",
+      advancePaid: 0,
+      thankYouNote: "Thanks for your business!",
+      contactPhone: "+91 79901 98105",
+      contactEmail: "hello@primedigitals.io",
     },
-    watermark: "bl",
+    bands: {
+      topHeight: 110,
+      topOffsetX: 0,
+      topOffsetY: 0,
+      topLogoLeft: 28,
+      topLogoTop: 0,
+      topLogoSize: 60,
+      topTitleRight: 70,
+      topTitleTop: 0,
+      topTitleSize: 34,
+      bottomHeight: 80,
+      bottomOffsetX: 0,
+      bottomOffsetY: 0,
+      stampSize: 96,
+      stampOffsetX: 0,
+      stampOffsetY: 0,
+    },
+    signature: {
+      name: "PRIME DIGITALS",
+      role: "",
+    },
+    watermark: "none",
     savedAt: Date.now(),
   };
   return base;

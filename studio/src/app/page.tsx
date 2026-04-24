@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect } from "react";
 import { Sidebar } from "@/components/studio/Sidebar";
 import { Editor } from "@/components/studio/Editor";
-import { PaginatedPreview } from "@/components/studio/PaginatedPreview";
+import { FigmaPreview } from "@/components/studio/FigmaPreview";
 import { LibraryModal } from "@/components/studio/LibraryModal";
 import { useStudio } from "@/lib/store";
 import { downloadPdf, triggerPrint } from "@/lib/pdf";
@@ -100,7 +100,7 @@ export default function Home() {
         </div>
 
         <div className="pd-studio__preview">
-          <PaginatedPreview doc={doc} ref={previewRef} />
+          <FigmaPreview doc={doc} ref={previewRef} />
         </div>
       </div>
 

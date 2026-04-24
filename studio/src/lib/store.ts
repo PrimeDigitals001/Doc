@@ -49,6 +49,12 @@ type StoreState = {
   setSignature: (patch: Partial<Doc["signature"]>) => void;
   setWatermark: (pos: WatermarkPos) => void;
 
+  // payment
+  setPayment: (patch: Partial<Doc["payment"]>) => void;
+
+  // bands
+  setBands: (patch: Partial<Doc["bands"]>) => void;
+
   // library
   saveAs: (name: string) => void;
   loadFromLibrary: (id: string) => void;
@@ -119,7 +125,7 @@ export const useStudio = create<StoreState>()(
         set((s) => ({
           doc: {
             ...s.doc,
-            items: [...s.doc.items, { id: makeId(), desc: "", qty: 1, rate: 0 }],
+            items: [...s.doc.items, { id: makeId(), title: "", sub: "", qty: 1, rate: 0 }],
           },
         })),
       updateItem: (id, patch) =>
@@ -164,6 +170,12 @@ export const useStudio = create<StoreState>()(
         set((s) => ({ doc: { ...s.doc, signature: { ...s.doc.signature, ...patch } } })),
       setWatermark: (pos) => set((s) => ({ doc: { ...s.doc, watermark: pos } })),
 
+      setPayment: (patch) =>
+        set((s) => ({ doc: { ...s.doc, payment: { ...s.doc.payment, ...patch } } })),
+
+      setBands: (patch) =>
+        set((s) => ({ doc: { ...s.doc, bands: { ...s.doc.bands, ...patch } } })),
+
       saveAs: (name) => {
         const { doc, library } = get();
         const existing = library.find((e) => e.name.toLowerCase() === name.toLowerCase());
@@ -191,7 +203,56 @@ export const useStudio = create<StoreState>()(
     }),
     {
       name: "pd-studio-v1",
-      version: 1,
+      version: 5,
+      migrate: (persistedState: unknown, fromVersion: number) => {
+        const s = persistedState as { doc?: Doc; library?: { id: string; name: string; doc: Doc }[] } | undefined;
+        if (!s) return s;
+        const defaultPayment = {
+          upiId: "9316715060",
+          bankAccount: "50100750274961",
+          bankIfsc: "HDFC0001450",
+          advancePaid: 0,
+          thankYouNote: "Thanks for your business!",
+          contactPhone: "+91 79901 98105",
+          contactEmail: "hello@primedigitals.io",
+        };
+        const defaultBands = {
+          topHeight: 110,
+          topOffsetX: 0,
+          topOffsetY: 0,
+          topLogoLeft: 28,
+          topLogoTop: 0,
+          topLogoSize: 60,
+          topTitleRight: 70,
+          topTitleTop: 0,
+          topTitleSize: 34,
+          bottomHeight: 80,
+          bottomOffsetX: 0,
+          bottomOffsetY: 0,
+          stampSize: 96,
+          stampOffsetX: 0,
+          stampOffsetY: 0,
+        };
+        // Migrate single `desc` items → {title, sub}
+        const migrateItem = (it: { desc?: string; title?: string; sub?: string; qty: number; rate: number; id: string }) => {
+          if (it.title !== undefined) return { ...it, sub: it.sub ?? "" };
+          const desc = it.desc ?? "";
+          const [first, ...rest] = desc.split("\n");
+          return { id: it.id, qty: it.qty, rate: it.rate, title: first || "", sub: rest.join("\n") };
+        };
+        const patch = (d: Doc): Doc => ({
+          ...d,
+          payment: d.payment ?? defaultPayment,
+          bands: { ...defaultBands, ...(d.bands ?? {}) },
+          items: Array.isArray(d.items) ? d.items.map(migrateItem) : [],
+        });
+        if (s.doc) s.doc = patch(s.doc);
+        if (Array.isArray(s.library)) {
+          s.library = s.library.map((e) => ({ ...e, doc: patch(e.doc) }));
+        }
+        void fromVersion;
+        return s;
+      },
     }
   )
 );

@@ -1,17 +1,22 @@
 "use client";
 
-export async function downloadPdf(element: HTMLElement, filename: string) {
-  // html2pdf.js is CJS + browser-only; dynamic import keeps it out of SSR
-  const html2pdf = (await import("html2pdf.js")).default;
-  const opt = {
-    margin: 0,
-    filename: `${filename}.pdf`,
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, letterRendering: true },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" as const },
-    pagebreak: { mode: ["avoid-all", "css", "legacy"] },
+/**
+ * Download PDF = native browser print (same engine that renders the preview),
+ * so fidelity matches pixel-for-pixel. Users pick "Save as PDF" in the print dialog.
+ *
+ * The filename hint is written into <title> before the print dialog opens;
+ * most browsers use <title> as the default save name.
+ */
+export function downloadPdf(_element: HTMLElement, filename: string) {
+  const prev = document.title;
+  document.title = filename;
+  window.print();
+  // Restore title on focus (the dialog blocks until resolved)
+  const restore = () => {
+    document.title = prev;
+    window.removeEventListener("focus", restore);
   };
-  await html2pdf().set(opt as any).from(element).save();
+  window.addEventListener("focus", restore);
 }
 
 export function triggerPrint() {

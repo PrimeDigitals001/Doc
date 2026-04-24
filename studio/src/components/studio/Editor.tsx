@@ -18,6 +18,7 @@ export function Editor() {
   const addTaxRow = useStudio((s) => s.addTaxRow);
   const updateTaxRow = useStudio((s) => s.updateTaxRow);
   const removeTaxRow = useStudio((s) => s.removeTaxRow);
+  const setPayment = useStudio((s) => s.setPayment);
 
   return (
     <div className="pd-editor">
@@ -68,16 +69,85 @@ export function Editor() {
               onChange={(e) => setPartyTo({ name: e.target.value })}
             />
           </Field>
-          <Field label="Address + contact" full>
+          <Field label="Attn: (optional)" full>
+            <input
+              className="pd-input"
+              value={doc.meta.attn || ""}
+              onChange={(e) => setMeta({ attn: e.target.value })}
+              placeholder="Attn: Mr. Meet Patel"
+            />
+          </Field>
+          <Field label="Phone + email (multi-line)" full>
             <textarea
               className="pd-input"
-              rows={4}
+              rows={3}
               value={doc.parties.to.lines}
               onChange={(e) => setPartyTo({ lines: e.target.value })}
+              placeholder={"P : +91 00000 00000\nE : client@example.com"}
             />
           </Field>
         </div>
       </section>
+
+      {HAS_ITEMS[doc.type] && (
+        <section className="pd-ed-section">
+          <h3 className="pd-ed-title">Payment &amp; totals</h3>
+          <div className="pd-ed-grid2">
+            <Field label="UPI ID">
+              <input
+                className="pd-input"
+                value={doc.payment.upiId}
+                onChange={(e) => setPayment({ upiId: e.target.value })}
+              />
+            </Field>
+            <Field label="Bank account">
+              <input
+                className="pd-input"
+                value={doc.payment.bankAccount}
+                onChange={(e) => setPayment({ bankAccount: e.target.value })}
+              />
+            </Field>
+            <Field label="IFSC / Bank code">
+              <input
+                className="pd-input"
+                value={doc.payment.bankIfsc}
+                onChange={(e) => setPayment({ bankIfsc: e.target.value })}
+              />
+            </Field>
+            <Field label="Advance paid">
+              <input
+                className="pd-input"
+                type="number"
+                min={0}
+                step="any"
+                value={doc.payment.advancePaid}
+                onChange={(e) => setPayment({ advancePaid: Number(e.target.value) })}
+              />
+            </Field>
+            <Field label="Thank-you note" full>
+              <input
+                className="pd-input"
+                value={doc.payment.thankYouNote}
+                onChange={(e) => setPayment({ thankYouNote: e.target.value })}
+              />
+            </Field>
+            <Field label="Contact phone">
+              <input
+                className="pd-input"
+                value={doc.payment.contactPhone}
+                onChange={(e) => setPayment({ contactPhone: e.target.value })}
+              />
+            </Field>
+            <Field label="Contact email">
+              <input
+                className="pd-input"
+                value={doc.payment.contactEmail}
+                onChange={(e) => setPayment({ contactEmail: e.target.value })}
+              />
+            </Field>
+          </div>
+        </section>
+      )}
 
       {HAS_ITEMS[doc.type] && (
         <section className="pd-ed-section">
@@ -87,31 +157,42 @@ export function Editor() {
           </div>
           <div className="pd-items-edit">
             {doc.items.map((it, i) => (
-              <div key={it.id} className="pd-item-row">
-                <div className="pd-item-hash">{i + 1}</div>
-                <input
-                  className="pd-input pd-item-desc"
-                  placeholder="Description"
-                  value={it.desc}
-                  onChange={(e) => updateItem(it.id, { desc: e.target.value })}
+              <div key={it.id} className="pd-item-card">
+                <div className="pd-item-card__head">
+                  <span className="pd-item-hash">#{i + 1}</span>
+                  <input
+                    className="pd-input pd-item-title"
+                    placeholder="Item title (e.g. Web Development)"
+                    value={it.title}
+                    onChange={(e) => updateItem(it.id, { title: e.target.value })}
+                  />
+                  <input
+                    className="pd-input pd-item-num"
+                    type="number"
+                    min={0}
+                    step="any"
+                    placeholder="Qty"
+                    value={it.qty}
+                    onChange={(e) => updateItem(it.id, { qty: Number(e.target.value) })}
+                  />
+                  <input
+                    className="pd-input pd-item-num"
+                    type="number"
+                    min={0}
+                    step="any"
+                    placeholder="Rate"
+                    value={it.rate}
+                    onChange={(e) => updateItem(it.id, { rate: Number(e.target.value) })}
+                  />
+                  <button className="pd-icon-btn" title="Remove" onClick={() => removeItem(it.id)}>✕</button>
+                </div>
+                <textarea
+                  className="pd-input pd-item-sub"
+                  placeholder="Subtitle / description (optional, multi-line allowed)"
+                  rows={2}
+                  value={it.sub}
+                  onChange={(e) => updateItem(it.id, { sub: e.target.value })}
                 />
-                <input
-                  className="pd-input pd-item-num"
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={it.qty}
-                  onChange={(e) => updateItem(it.id, { qty: Number(e.target.value) })}
-                />
-                <input
-                  className="pd-input pd-item-num"
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={it.rate}
-                  onChange={(e) => updateItem(it.id, { rate: Number(e.target.value) })}
-                />
-                <button className="pd-icon-btn" title="Remove" onClick={() => removeItem(it.id)}>✕</button>
               </div>
             ))}
             {doc.items.length === 0 && (

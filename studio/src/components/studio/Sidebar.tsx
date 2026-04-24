@@ -23,6 +23,7 @@ export function Sidebar({
   const setWatermark = useStudio((s) => s.setWatermark);
   const setSignature = useStudio((s) => s.setSignature);
   const setPartyFrom = useStudio((s) => s.setPartyFrom);
+  const setBands = useStudio((s) => s.setBands);
   const newDoc = useStudio((s) => s.newDoc);
 
   return (
@@ -69,6 +70,65 @@ export function Sidebar({
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="pd-sb-section">
+        <div className="pd-sb-title">Top band</div>
+        <SliderRow label="Height" value={doc.bands.topHeight} min={60} max={240} onChange={(v) => setBands({ topHeight: v })} unit="px" />
+        <SliderRow label="Shift ← →" value={doc.bands.topOffsetX} min={-120} max={120} onChange={(v) => setBands({ topOffsetX: v })} unit="px" />
+        <SliderRow label="Shift ↑ ↓" value={doc.bands.topOffsetY} min={-80} max={80} onChange={(v) => setBands({ topOffsetY: v })} unit="px" />
+      </div>
+
+      <div className="pd-sb-section">
+        <div className="pd-sb-title">Logo</div>
+        <SliderRow label="From left" value={doc.bands.topLogoLeft} min={-40} max={300} onChange={(v) => setBands({ topLogoLeft: v })} unit="px" />
+        <SliderRow label="Shift ↑ ↓" value={doc.bands.topLogoTop} min={-80} max={80} onChange={(v) => setBands({ topLogoTop: v })} unit="px" />
+        <SliderRow label="Size" value={doc.bands.topLogoSize} min={30} max={160} onChange={(v) => setBands({ topLogoSize: v })} unit="px" />
+      </div>
+
+      <div className="pd-sb-section">
+        <div className="pd-sb-title">Title (INVOICE / etc.)</div>
+        <SliderRow label="From right" value={doc.bands.topTitleRight} min={-40} max={300} onChange={(v) => setBands({ topTitleRight: v })} unit="px" />
+        <SliderRow label="Shift ↑ ↓" value={doc.bands.topTitleTop} min={-80} max={80} onChange={(v) => setBands({ topTitleTop: v })} unit="px" />
+        <SliderRow label="Font size" value={doc.bands.topTitleSize} min={14} max={72} onChange={(v) => setBands({ topTitleSize: v })} unit="px" />
+      </div>
+
+      <div className="pd-sb-section">
+        <div className="pd-sb-title">Bottom band</div>
+        <SliderRow label="Height" value={doc.bands.bottomHeight} min={40} max={220} onChange={(v) => setBands({ bottomHeight: v })} unit="px" />
+        <SliderRow label="Shift ← →" value={doc.bands.bottomOffsetX} min={-120} max={120} onChange={(v) => setBands({ bottomOffsetX: v })} unit="px" />
+        <SliderRow label="Shift ↑ ↓" value={doc.bands.bottomOffsetY} min={-80} max={80} onChange={(v) => setBands({ bottomOffsetY: v })} unit="px" />
+      </div>
+
+      <div className="pd-sb-section">
+        <div className="pd-sb-title">Logomark (stamp)</div>
+        <SliderRow label="Size" value={doc.bands.stampSize} min={48} max={220} onChange={(v) => setBands({ stampSize: v })} unit="px" />
+        <SliderRow label="Shift ← →" value={doc.bands.stampOffsetX} min={-200} max={200} onChange={(v) => setBands({ stampOffsetX: v })} unit="px" />
+        <SliderRow label="Shift ↑ ↓" value={doc.bands.stampOffsetY} min={-200} max={200} onChange={(v) => setBands({ stampOffsetY: v })} unit="px" />
+        <button
+          onClick={() =>
+            setBands({
+              topHeight: 110,
+              topOffsetX: 0,
+              topOffsetY: 0,
+              topLogoLeft: 28,
+              topLogoTop: 0,
+              topLogoSize: 60,
+              topTitleRight: 70,
+              topTitleTop: 0,
+              topTitleSize: 34,
+              bottomHeight: 80,
+              bottomOffsetX: 0,
+              bottomOffsetY: 0,
+              stampSize: 96,
+              stampOffsetX: 0,
+              stampOffsetY: 0,
+            })
+          }
+          className="pd-sb-linkbtn"
+        >
+          ↺ Reset all band controls
+        </button>
       </div>
 
       <div className="pd-sb-section">
@@ -130,5 +190,41 @@ export function Sidebar({
         <button onClick={onImportJson} className="pd-btn pd-btn--ghost">Import JSON</button>
       </div>
     </aside>
+  );
+}
+
+function SliderRow({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+  unit = "",
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+  unit?: string;
+}) {
+  return (
+    <div className="pd-slider-row">
+      <div className="pd-slider-label">
+        <span>{label}</span>
+        <span className="pd-slider-value">
+          {value}
+          {unit}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="pd-slider"
+      />
+    </div>
   );
 }
