@@ -234,11 +234,27 @@ export const useStudio = create<StoreState>()(
           stampOffsetY: 0,
         };
         // Migrate single `desc` items → {title, sub}
-        const migrateItem = (it: { desc?: string; title?: string; sub?: string; qty: number; rate: number; id: string }) => {
-          if (it.title !== undefined) return { ...it, sub: it.sub ?? "" };
+        const migrateItem = (
+          it: { desc?: string; title?: string; sub?: string; qty: number; rate: number; id: string }
+        ): import("./schema").Item => {
+          if (typeof it.title === "string") {
+            return {
+              id: it.id,
+              qty: it.qty,
+              rate: it.rate,
+              title: it.title,
+              sub: it.sub ?? "",
+            };
+          }
           const desc = it.desc ?? "";
           const [first, ...rest] = desc.split("\n");
-          return { id: it.id, qty: it.qty, rate: it.rate, title: first || "", sub: rest.join("\n") };
+          return {
+            id: it.id,
+            qty: it.qty,
+            rate: it.rate,
+            title: first || "",
+            sub: rest.join("\n"),
+          };
         };
         const patch = (d: Doc): Doc => ({
           ...d,
