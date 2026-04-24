@@ -96,7 +96,10 @@ export const PaginatedPreview = forwardRef<HTMLDivElement, Props>(
                   {doc.items.map((it, i) => (
                     <tr key={it.id}>
                       <td>{i + 1}</td>
-                      <td>{it.desc || <em style={{ color: "#b6bcc3" }}>Item description…</em>}</td>
+                      <td>
+                        <div>{it.title || <em style={{ color: "#b6bcc3" }}>Item title…</em>}</div>
+                        {it.sub && <div style={{ fontSize: 11, color: "#5a6773" }}>{it.sub}</div>}
+                      </td>
                       <td className="num">{it.qty}</td>
                       <td className="num">{fmt(it.rate)}</td>
                       <td className="num">{fmt(it.qty * it.rate)}</td>

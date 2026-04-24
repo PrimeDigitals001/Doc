@@ -644,16 +644,65 @@ textarea.pd-input { resize: vertical; line-height: 1.5; }
   flex-direction: column;
   gap: 6px;
 }
+.pd-item-card {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pd-item-card__row1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pd-item-card__row1 .pd-item-hash {
+  flex: 0 0 28px;
+}
+.pd-item-card__row1 .pd-item-title {
+  flex: 1;
+  min-width: 0;
+}
+.pd-item-card__row1 .pd-icon-btn {
+  flex: 0 0 28px;
+}
+.pd-item-card__row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: end;
+}
+.pd-item-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pd-item-mini > span {
+  font-size: 10.5px;
+  color: var(--pd-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.pd-item-hash { font-size: 11px; color: var(--pd-muted); text-align: center; font-weight: 600; }
+.pd-item-title { width: 100%; font-weight: 600; }
+.pd-item-num { text-align: right; }
+.pd-item-sub {
+  width: 100%;
+  font-size: 12.5px;
+  line-height: 1.5;
+  min-height: 64px;
+  resize: vertical;
+  font-family: inherit;
+  color: var(--pd-ink);
+}
+
+/* legacy (kept for backwards compat if referenced) */
 .pd-item-card__head {
   display: grid;
   grid-template-columns: 28px 1fr 60px 90px 28px;
   gap: 6px;
   align-items: center;
 }
-.pd-item-hash { font-size: 11px; color: var(--pd-muted); text-align: center; font-weight: 600; }
-.pd-item-title { width: 100%; font-weight: 600; }
-.pd-item-num { text-align: right; }
-.pd-item-sub { width: 100%; }
 
 /* legacy row layout kept for any stray usage */
 .pd-item-row {

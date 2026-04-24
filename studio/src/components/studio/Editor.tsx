@@ -158,7 +158,7 @@ export function Editor() {
           <div className="pd-items-edit">
             {doc.items.map((it, i) => (
               <div key={it.id} className="pd-item-card">
-                <div className="pd-item-card__head">
+                <div className="pd-item-card__row1">
                   <span className="pd-item-hash">#{i + 1}</span>
                   <input
                     className="pd-input pd-item-title"
@@ -166,33 +166,39 @@ export function Editor() {
                     value={it.title}
                     onChange={(e) => updateItem(it.id, { title: e.target.value })}
                   />
-                  <input
-                    className="pd-input pd-item-num"
-                    type="number"
-                    min={0}
-                    step="any"
-                    placeholder="Qty"
-                    value={it.qty}
-                    onChange={(e) => updateItem(it.id, { qty: Number(e.target.value) })}
-                  />
-                  <input
-                    className="pd-input pd-item-num"
-                    type="number"
-                    min={0}
-                    step="any"
-                    placeholder="Rate"
-                    value={it.rate}
-                    onChange={(e) => updateItem(it.id, { rate: Number(e.target.value) })}
-                  />
                   <button className="pd-icon-btn" title="Remove" onClick={() => removeItem(it.id)}>✕</button>
                 </div>
                 <textarea
                   className="pd-input pd-item-sub"
                   placeholder="Subtitle / description (optional, multi-line allowed)"
-                  rows={2}
+                  rows={3}
                   value={it.sub}
                   onChange={(e) => updateItem(it.id, { sub: e.target.value })}
                 />
+                <div className="pd-item-card__row2">
+                  <label className="pd-item-mini">
+                    <span>Qty</span>
+                    <input
+                      className="pd-input pd-item-num"
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={it.qty}
+                      onChange={(e) => updateItem(it.id, { qty: Number(e.target.value) })}
+                    />
+                  </label>
+                  <label className="pd-item-mini">
+                    <span>Rate</span>
+                    <input
+                      className="pd-input pd-item-num"
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={it.rate}
+                      onChange={(e) => updateItem(it.id, { rate: Number(e.target.value) })}
+                    />
+                  </label>
+                </div>
               </div>
             ))}
             {doc.items.length === 0 && (
