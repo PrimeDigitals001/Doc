@@ -77,37 +77,24 @@ export const FigmaPreview = forwardRef<HTMLDivElement, Props>(
         ),
       });
 
-      // 2. Items table
+      // 2. Items — split into per-row blocks so the table can flow across pages.
+      // Each row is its own block; the renderer wraps consecutive item-row blocks
+      // into a single <table> with header re-emitted on every page.
       if (HAS_ITEMS[doc.type] && doc.items.length > 0) {
-        list.push({
-          key: "items",
-          node: (
-            <table className="fg-items">
-              <thead>
-                <tr>
-                  <th>Item description</th>
-                  <th className="center">Quantity</th>
-                  <th className="center">Unite Price</th>
-                  <th className="center">Total Price</th>
-                </tr>
-              </thead>
-              <tbody>
-                {doc.items.map((it) => (
-                  <tr key={it.id}>
-                    <td>
-                      <div className="fg-items__title">{it.title || ""}</div>
-                      {it.sub && <div className="fg-items__sub">{it.sub}</div>}
-                    </td>
-                    <td className="center fg-items__qty">
-                      {String(it.qty).padStart(2, "0")}
-                    </td>
-                    <td className="center fg-items__num">{fmtNum(it.rate, doc)}</td>
-                    <td className="center fg-items__num">{fmtNum(it.qty * it.rate, doc)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ),
+        doc.items.forEach((it) => {
+          list.push({
+            key: `item-${it.id}`,
+            node: (
+              <ItemRowFragment
+                title={it.title || ""}
+                sub={it.sub || ""}
+                qty={it.qty}
+                rate={it.rate}
+                amount={it.qty * it.rate}
+                doc={doc}
+              />
+            ),
+          });
         });
       }
 
@@ -222,11 +209,7 @@ export const FigmaPreview = forwardRef<HTMLDivElement, Props>(
 
               {/* Body */}
               <div className="fg-body">
-                {pageBlocks.map((b) => (
-                  <div key={b.key} className="fg-block">
-                    {b.node}
-                  </div>
-                ))}
+                {renderPageBlocks(pageBlocks)}
 
                 {isLast && (
                   <div className="fg-endblock">
@@ -354,6 +337,108 @@ export const FigmaPreview = forwardRef<HTMLDivElement, Props>(
 
 function fmtNum(n: number, doc: Doc): string {
   return formatAmount(n, doc.money.numbering, doc.money.currency);
+}
+
+/** Single row used both by measurement (wrapped in a tiny table) and by render. */
+function ItemRowFragment({
+  title,
+  sub,
+  qty,
+  rate,
+  amount,
+  doc,
+}: {
+  title: string;
+  sub: string;
+  qty: number;
+  rate: number;
+  amount: number;
+  doc: Doc;
+}) {
+  // For measurement we render a complete tiny table so the row's natural height
+  // (with its own header background context) is accurate.
+  return (
+    <table className="fg-items fg-items--measure">
+      <tbody>
+        <tr>
+          <td>
+            <div className="fg-items__title">{title}</div>
+            {sub && <div className="fg-items__sub">{sub}</div>}
+          </td>
+          <td className="center fg-items__qty">{String(qty).padStart(2, "0")}</td>
+          <td className="center fg-items__num">{fmtNum(rate, doc)}</td>
+          <td className="center fg-items__num">{fmtNum(amount, doc)}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
+/**
+ * Render a page's blocks. Consecutive `item-*` blocks are grouped into a single
+ * <table> with the header re-emitted on this page.
+ */
+function renderPageBlocks(pageBlocks: Block[]): React.ReactNode {
+  const out: React.ReactNode[] = [];
+  let buffer: Block[] = [];
+
+  const flushItems = () => {
+    if (buffer.length === 0) return;
+    out.push(
+      <table key={`items-${buffer[0].key}`} className="fg-items">
+        <thead>
+          <tr>
+            <th>Item description</th>
+            <th className="center">Quantity</th>
+            <th className="center">Unite Price</th>
+            <th className="center">Total Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          {buffer.map((b) => {
+            // Each item block's node is an ItemRowFragment whose root <table>
+            // wraps a single <tbody><tr>. Re-render the row inline here.
+            const props = (b.node as React.ReactElement<{
+              title: string;
+              sub: string;
+              qty: number;
+              rate: number;
+              amount: number;
+              doc: Doc;
+            }>).props;
+            return (
+              <tr key={b.key}>
+                <td>
+                  <div className="fg-items__title">{props.title}</div>
+                  {props.sub && <div className="fg-items__sub">{props.sub}</div>}
+                </td>
+                <td className="center fg-items__qty">{String(props.qty).padStart(2, "0")}</td>
+                <td className="center fg-items__num">{fmtNum(props.rate, props.doc)}</td>
+                <td className="center fg-items__num">{fmtNum(props.amount, props.doc)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+    buffer = [];
+  };
+
+  pageBlocks.forEach((b) => {
+    if (b.key.startsWith("item-")) {
+      buffer.push(b);
+    } else {
+      flushItems();
+      out.push(
+        <div key={b.key} className="fg-block">
+          {b.node}
+        </div>
+      );
+    }
+  });
+  flushItems();
+
+  return out;
 }
 
 function stripP(html: string): string {
