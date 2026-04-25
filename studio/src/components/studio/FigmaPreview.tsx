@@ -272,7 +272,13 @@ export const FigmaPreview = forwardRef<HTMLDivElement, Props>(
 
                     {/* Stamp + contact */}
                     <div className="fg-stampRow">
-                      <div className="fg-contactCol">
+                      <div
+                        className="fg-contactCol"
+                        style={{
+                          fontSize: doc.bands.contactFontSize,
+                          transform: `translate(${doc.bands.contactOffsetX}px, ${doc.bands.contactOffsetY}px)`,
+                        }}
+                      >
                         <div className="fg-contactLine">
                           <span className="fg-contactIcon fg-contactIcon--phone">📞</span>
                           <span>{doc.payment.contactPhone}</span>

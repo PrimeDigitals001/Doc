@@ -67,6 +67,11 @@ export type BandControls = {
   stampSize: number;       // px, width/height (default 96)
   stampOffsetX: number;    // px, shift left(-) / right(+)
   stampOffsetY: number;    // px, shift up(-) / down(+)
+
+  // Contact column (phone + email) on last page
+  contactFontSize: number; // px (default 12)
+  contactOffsetX: number;  // px, shift left(-) / right(+)
+  contactOffsetY: number;  // px, shift up(-) / down(+)
 };
 
 export type Doc = {
@@ -254,6 +259,9 @@ export function makeDefaultDoc(type: DocType): Doc {
       stampSize: 137,
       stampOffsetX: -10,
       stampOffsetY: 7,
+      contactFontSize: 12,
+      contactOffsetX: 0,
+      contactOffsetY: 0,
     },
     signature: {
       name: "PRIME DIGITALS",

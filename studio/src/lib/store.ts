@@ -232,6 +232,9 @@ export const useStudio = create<StoreState>()(
           stampSize: 137,
           stampOffsetX: -10,
           stampOffsetY: 7,
+          contactFontSize: 12,
+          contactOffsetX: 0,
+          contactOffsetY: 0,
         };
         // Migrate single `desc` items → {title, sub}
         const migrateItem = (

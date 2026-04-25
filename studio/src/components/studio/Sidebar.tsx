@@ -105,6 +105,13 @@ export function Sidebar({
         <SliderRow label="Size" value={doc.bands.stampSize} min={48} max={220} onChange={(v) => setBands({ stampSize: v })} unit="px" />
         <SliderRow label="Shift ← →" value={doc.bands.stampOffsetX} min={-200} max={200} onChange={(v) => setBands({ stampOffsetX: v })} unit="px" />
         <SliderRow label="Shift ↑ ↓" value={doc.bands.stampOffsetY} min={-200} max={200} onChange={(v) => setBands({ stampOffsetY: v })} unit="px" />
+      </div>
+
+      <div className="pd-sb-section">
+        <div className="pd-sb-title">Contact (phone + email)</div>
+        <SliderRow label="Font size" value={doc.bands.contactFontSize} min={8} max={20} onChange={(v) => setBands({ contactFontSize: v })} unit="px" />
+        <SliderRow label="Shift ← →" value={doc.bands.contactOffsetX} min={-200} max={200} onChange={(v) => setBands({ contactOffsetX: v })} unit="px" />
+        <SliderRow label="Shift ↑ ↓" value={doc.bands.contactOffsetY} min={-200} max={200} onChange={(v) => setBands({ contactOffsetY: v })} unit="px" />
         <button
           onClick={() =>
             setBands({
@@ -123,6 +130,9 @@ export function Sidebar({
               stampSize: 137,
               stampOffsetX: -10,
               stampOffsetY: 7,
+              contactFontSize: 12,
+              contactOffsetX: 0,
+              contactOffsetY: 0,
             })
           }
           className="pd-sb-linkbtn"
