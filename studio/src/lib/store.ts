@@ -13,7 +13,8 @@ import type {
   TaxRow,
   WatermarkPos,
 } from "./schema";
-import { defaultTaxRows, makeDefaultDoc, makeId } from "./schema";
+import { LETTER_TEMPLATES, defaultTaxRows, makeDefaultDoc, makeId } from "./schema";
+import type { LetterTemplate } from "./schema";
 
 type LibraryEntry = { id: string; name: string; doc: Doc };
 
@@ -54,6 +55,10 @@ type StoreState = {
 
   // bands
   setBands: (patch: Partial<Doc["bands"]>) => void;
+
+  // letter
+  setLetter: (patch: Partial<NonNullable<Doc["letter"]>>) => void;
+  applyLetterTemplate: (tpl: import("./schema").LetterTemplate) => void;
 
   // library
   saveAs: (name: string) => void;
@@ -176,6 +181,41 @@ export const useStudio = create<StoreState>()(
       setBands: (patch) =>
         set((s) => ({ doc: { ...s.doc, bands: { ...s.doc.bands, ...patch } } })),
 
+      setLetter: (patch) =>
+        set((s) => {
+          const cur = s.doc.letter ?? {
+            template: "general",
+            title: "Letter",
+            salutation: "",
+            closing: "",
+            closing2: "",
+            signoff: "",
+          };
+          return { doc: { ...s.doc, letter: { ...cur, ...patch } } };
+        }),
+
+      applyLetterTemplate: (tpl: LetterTemplate) => {
+        const t = LETTER_TEMPLATES[tpl];
+        set((s) => ({
+          doc: {
+            ...s.doc,
+            letter: {
+              template: tpl,
+              title: t.title,
+              salutation: t.salutation,
+              closing: t.closing,
+              closing2: t.closing2,
+              signoff: t.signoff,
+            },
+            clauses: t.clauses.map((c) => ({
+              id: makeId(),
+              title: c.title,
+              bodyHtml: c.bodyHtml,
+            })),
+          },
+        }));
+      },
+
       saveAs: (name) => {
         const { doc, library } = get();
         const existing = library.find((e) => e.name.toLowerCase() === name.toLowerCase());
@@ -203,7 +243,7 @@ export const useStudio = create<StoreState>()(
     }),
     {
       name: "pd-studio-v1",
-      version: 5,
+      version: 6,
       migrate: (persistedState: unknown, fromVersion: number) => {
         const s = persistedState as { doc?: Doc; library?: { id: string; name: string; doc: Doc }[] } | undefined;
         if (!s) return s;

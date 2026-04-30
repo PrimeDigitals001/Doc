@@ -6,7 +6,7 @@ import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } fro
 const useIsoLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
 import type { Doc } from "@/lib/schema";
-import { DOC_TYPE_EYEBROW, HAS_ITEMS } from "@/lib/schema";
+import { DOC_TYPE_EYEBROW, HAS_ITEMS, IS_LETTER } from "@/lib/schema";
 import { computeTotals, formatAmount } from "@/lib/money";
 
 type Props = { doc: Doc };
@@ -36,6 +36,57 @@ export const FigmaPreview = forwardRef<HTMLDivElement, Props>(
     const blocks: Block[] = useMemo(() => {
       const list: Block[] = [];
 
+      // ----- LETTER LAYOUT -----
+      if (IS_LETTER[doc.type] && doc.letter) {
+        list.push({
+          key: "letter-date",
+          node: (
+            <div className="fg-letterDate">{formatDate(doc.meta.date)}</div>
+          ),
+        });
+        list.push({
+          key: "letter-title",
+          node: <h1 className="fg-letterTitle">{doc.letter.title}</h1>,
+        });
+        list.push({
+          key: "letter-salutation",
+          node: <div className="fg-letterSalutation">{doc.letter.salutation}</div>,
+        });
+        // Clauses (body paragraphs) handled below in the existing loop — but for letter
+        // we want them rendered as paragraphs, not numbered terms. We push each as its
+        // own block so it can paginate.
+        doc.clauses.forEach((c) => {
+          list.push({
+            key: `letter-body-${c.id}`,
+            node: (
+              <div className="fg-letterBody">
+                {c.title && <h3 className="fg-letterBody__heading">{c.title}</h3>}
+                <div
+                  className="fg-letterBody__prose"
+                  dangerouslySetInnerHTML={{ __html: c.bodyHtml }}
+                />
+              </div>
+            ),
+          });
+        });
+        // Sign-off lines
+        list.push({
+          key: "letter-closing",
+          node: (
+            <div className="fg-letterClosing">
+              {doc.letter.closing && <div>{doc.letter.closing}</div>}
+              {doc.letter.closing2 && <div>{doc.letter.closing2}</div>}
+            </div>
+          ),
+        });
+        list.push({
+          key: "letter-signoff",
+          node: <div className="fg-letterSignoff">{doc.letter.signoff}</div>,
+        });
+        return list;
+      }
+
+      // ----- INVOICE / QUOTATION / AGREEMENT / TNC -----
       // 1. Invoice To + ID row
       list.push({
         key: "header-row",
@@ -195,16 +246,18 @@ export const FigmaPreview = forwardRef<HTMLDivElement, Props>(
                     transform: `translateY(calc(-50% + ${doc.bands.topLogoTop}px))`,
                   }}
                 />
-                <div
-                  className="fg-topband__title"
-                  style={{
-                    right: doc.bands.topTitleRight,
-                    fontSize: doc.bands.topTitleSize,
-                    transform: `translateY(calc(-50% + ${doc.bands.topTitleTop}px))`,
-                  }}
-                >
-                  {DOC_TYPE_EYEBROW[doc.type]}
-                </div>
+                {!IS_LETTER[doc.type] && (
+                  <div
+                    className="fg-topband__title"
+                    style={{
+                      right: doc.bands.topTitleRight,
+                      fontSize: doc.bands.topTitleSize,
+                      transform: `translateY(calc(-50% + ${doc.bands.topTitleTop}px))`,
+                    }}
+                  >
+                    {DOC_TYPE_EYEBROW[doc.type]}
+                  </div>
+                )}
               </div>
 
               {/* Body */}
@@ -213,7 +266,7 @@ export const FigmaPreview = forwardRef<HTMLDivElement, Props>(
 
                 {isLast && (
                   <div className="fg-endblock">
-                    {/* Payment + totals row */}
+                    {/* Payment + totals row (invoices/quotations only) */}
                     {HAS_ITEMS[doc.type] && (
                       <div className="fg-payRow">
                         <div className="fg-payment">
@@ -253,8 +306,8 @@ export const FigmaPreview = forwardRef<HTMLDivElement, Props>(
                       </div>
                     )}
 
-                    {/* Terms */}
-                    {doc.clauses.length > 0 && (
+                    {/* Terms (not on letters — clauses are body paragraphs there) */}
+                    {!IS_LETTER[doc.type] && doc.clauses.length > 0 && (
                       <div className="fg-terms">
                         <div className="fg-terms__title">Terms &amp; Conditions:</div>
                         <ol className="fg-terms__list">
@@ -268,7 +321,7 @@ export const FigmaPreview = forwardRef<HTMLDivElement, Props>(
                       </div>
                     )}
 
-                    <div className="fg-thanks">{doc.payment.thankYouNote}</div>
+                    {!IS_LETTER[doc.type] && <div className="fg-thanks">{doc.payment.thankYouNote}</div>}
 
                     {/* Stamp + contact */}
                     <div className="fg-stampRow">

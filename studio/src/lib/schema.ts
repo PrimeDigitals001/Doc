@@ -1,4 +1,6 @@
-export type DocType = "quotation" | "invoice" | "agreement" | "tnc";
+export type DocType = "quotation" | "invoice" | "agreement" | "tnc" | "letter";
+
+export type LetterTemplate = "internship-offer" | "job-offer" | "general";
 
 export type Currency = "INR" | "USD" | "EUR" | "AED" | "GBP";
 export type Numbering = "indian" | "intl";
@@ -74,6 +76,15 @@ export type BandControls = {
   contactOffsetY: number;  // px, shift up(-) / down(+)
 };
 
+export type LetterFields = {
+  template: LetterTemplate;
+  title: string;          // "Internship Offer Letter"
+  salutation: string;     // "Dear Mr. Krishna Mehta"
+  closing: string;        // "Wishing you success!"
+  closing2: string;       // "Happy Working!"
+  signoff: string;        // "For, UMM Studios..."
+};
+
 export type Doc = {
   id: string;
   type: DocType;
@@ -84,6 +95,7 @@ export type Doc = {
     subject: string; // client-facing subtitle (e.g. "Project Proposal")
     attn?: string;   // "Attn: Mr. ..." line
   };
+  letter?: LetterFields;
   parties: { from: Party; to: Party };
   money: {
     currency: Currency;
@@ -109,6 +121,7 @@ export const DOC_TYPE_LABELS: Record<DocType, string> = {
   invoice: "Invoice",
   agreement: "Agreement",
   tnc: "Terms & Conditions",
+  letter: "Letter",
 };
 
 export const DOC_TYPE_EYEBROW: Record<DocType, string> = {
@@ -116,6 +129,7 @@ export const DOC_TYPE_EYEBROW: Record<DocType, string> = {
   invoice: "INVOICE",
   agreement: "AGREEMENT",
   tnc: "TERMS & CONDITIONS",
+  letter: "LETTER",
 };
 
 export const HAS_ITEMS: Record<DocType, boolean> = {
@@ -123,6 +137,15 @@ export const HAS_ITEMS: Record<DocType, boolean> = {
   invoice: true,
   agreement: false,
   tnc: false,
+  letter: false,
+};
+
+export const IS_LETTER: Record<DocType, boolean> = {
+  quotation: false,
+  invoice: false,
+  agreement: false,
+  tnc: false,
+  letter: true,
 };
 
 export const CURRENCIES: { code: Currency; symbol: string; label: string }[] = [
@@ -152,11 +175,84 @@ export function makeId(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
 
+export const LETTER_TEMPLATES: Record<
+  LetterTemplate,
+  { title: string; salutation: string; closing: string; closing2: string; signoff: string; clauses: { title: string; bodyHtml: string }[] }
+> = {
+  "internship-offer": {
+    title: "Internship Offer Letter",
+    salutation: "Dear Mr. Recipient Name",
+    closing: "Wishing you success!",
+    closing2: "Happy Working!",
+    signoff: "For, Prime Digitals.",
+    clauses: [
+      {
+        title: "",
+        bodyHtml:
+          "<p><strong>Congratulations!</strong> Following your application and subsequent interview, we are pleased to confirm you have been selected to work for <strong>Prime Digitals</strong>. We are delighted to make you the following Internship offer. Your internship will start on <strong>23 December 2024</strong> with a stipend of Rs. 7500 per month. All of us at <strong>Prime Digitals</strong> are excited that you will be joining our team!</p>",
+      },
+      {
+        title: "",
+        bodyHtml: "<p>For this role, you will work with the <strong>UI/UX</strong> team as an <strong>Intern</strong>.</p>",
+      },
+      {
+        title: "Terms of engagement",
+        bodyHtml:
+          "<ul><li>Working Hours: 8 Hours daily, 10:00 AM – 6:00 PM (Monday through Friday)</li><li>Period of Engagement: 3 months</li></ul>",
+      },
+      {
+        title: "",
+        bodyHtml:
+          "<p>Any action that could affect our business, reputation, or other key credentials would lead to direct termination of the internship with no further notice.</p><p>We hope that you will work to your level best to improve the efficiency and performance of this company.</p><p>Once again, congratulations to you on your selection and all the best for your endeavours.</p>",
+      },
+    ],
+  },
+  "job-offer": {
+    title: "Offer of Employment",
+    salutation: "Dear Mr. Recipient Name",
+    closing: "Welcome aboard!",
+    closing2: "",
+    signoff: "For, Prime Digitals.",
+    clauses: [
+      {
+        title: "",
+        bodyHtml:
+          "<p>We are pleased to extend to you an offer of employment with <strong>Prime Digitals</strong>, effective <strong>start date</strong>. We were impressed with your background and believe you will be a valuable addition to our team.</p>",
+      },
+      {
+        title: "Position & Compensation",
+        bodyHtml:
+          "<ul><li>Position: <strong>Role title</strong></li><li>Compensation: <strong>₹X,XX,XXX</strong> per annum</li><li>Working hours: 9:00 AM – 6:00 PM, Monday through Friday</li></ul>",
+      },
+      {
+        title: "",
+        bodyHtml:
+          "<p>Please confirm your acceptance by signing and returning a copy of this letter at your earliest convenience.</p>",
+      },
+    ],
+  },
+  general: {
+    title: "Letter",
+    salutation: "Dear Recipient",
+    closing: "Sincerely,",
+    closing2: "",
+    signoff: "Prime Digitals",
+    clauses: [
+      {
+        title: "",
+        bodyHtml: "<p>Letter body. Replace this with your message.</p>",
+      },
+    ],
+  },
+};
+
 export function makeDefaultDoc(type: DocType): Doc {
   const today = new Date().toISOString().slice(0, 10);
   const yr = new Date().getFullYear();
-  const prefix = { quotation: "Q", invoice: "INV", agreement: "AGR", tnc: "TNC" }[type];
+  const prefix = { quotation: "Q", invoice: "INV", agreement: "AGR", tnc: "TNC", letter: "LTR" }[type];
   const num = Math.floor(1000 + Math.random() * 9000);
+  const isLetter = type === "letter";
+  const tpl = isLetter ? LETTER_TEMPLATES["internship-offer"] : null;
 
   const base: Doc = {
     id: makeId(),
@@ -171,8 +267,22 @@ export function makeDefaultDoc(type: DocType): Doc {
           ? "Services Rendered"
           : type === "agreement"
           ? "Service Agreement"
+          : type === "letter"
+          ? "Internship Offer Letter"
           : "Terms & Conditions",
     },
+    ...(isLetter && tpl
+      ? {
+          letter: {
+            template: "internship-offer" as LetterTemplate,
+            title: tpl.title,
+            salutation: tpl.salutation,
+            closing: tpl.closing,
+            closing2: tpl.closing2,
+            signoff: tpl.signoff,
+          },
+        }
+      : {}),
     parties: {
       from: {
         name: "Prime Digitals",
@@ -206,8 +316,9 @@ export function makeDefaultDoc(type: DocType): Doc {
           },
         ]
       : [],
-    clauses:
-      type === "agreement" || type === "tnc"
+    clauses: tpl
+      ? tpl.clauses.map((c) => ({ id: makeId(), title: c.title, bodyHtml: c.bodyHtml }))
+      : type === "agreement" || type === "tnc"
         ? [
             {
               id: makeId(),

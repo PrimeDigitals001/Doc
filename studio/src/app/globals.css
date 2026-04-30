@@ -1013,6 +1013,67 @@ textarea.pd-input { resize: vertical; line-height: 1.5; }
   overflow: hidden;
 }
 .fg-items--measure { margin-top: 0; }
+
+/* ========== LETTER LAYOUT ========== */
+.fg-letterDate {
+  text-align: right;
+  font-size: 13px;
+  color: #1a1a1a;
+  margin-top: 4px;
+}
+.fg-letterTitle {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 26px 0 22px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  letter-spacing: 0.01em;
+}
+.fg-letterSalutation {
+  font-size: 13px;
+  color: #1a1a1a;
+  margin-bottom: 18px;
+  font-weight: 500;
+}
+.fg-letterBody {
+  font-size: 13px;
+  line-height: 1.65;
+  color: #1a1a1a;
+  margin-bottom: 14px;
+}
+.fg-letterBody__heading {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 6px 0 6px;
+}
+.fg-letterBody__prose p { margin: 0 0 8px; }
+.fg-letterBody__prose ul,
+.fg-letterBody__prose ol {
+  padding-left: 24px;
+  margin: 6px 0 8px;
+}
+.fg-letterBody__prose ul { list-style: disc; }
+.fg-letterBody__prose ol { list-style: decimal; }
+.fg-letterBody__prose strong { font-weight: 700; }
+.fg-letterBody__prose a { color: var(--pd-cyan); text-decoration: underline; }
+
+.fg-letterClosing {
+  text-align: right;
+  font-size: 13px;
+  color: #1a1a1a;
+  margin-top: 22px;
+  line-height: 1.7;
+}
+.fg-letterSignoff {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-top: 6px;
+}
 .fg-items thead th {
   background: var(--pd-cyan);
   color: #ffffff;
