@@ -48,58 +48,68 @@ export function Sidebar({
         </button>
       </div>
 
-      {doc.type === "letter" && doc.letter && (
-        <div className="pd-sb-section">
-          <div className="pd-sb-title">Letter</div>
-          <label className="pd-sb-label">Template</label>
-          <select
-            value={doc.letter.template}
-            onChange={(e) => applyLetterTemplate(e.target.value as LetterTemplate)}
-            className="pd-input"
-          >
-            <option value="internship-offer">Internship Offer Letter</option>
-            <option value="job-offer">Job Offer Letter</option>
-            <option value="general">General / Blank Letter</option>
-          </select>
-          <label className="pd-sb-label" style={{ marginTop: 10 }}>Title</label>
-          <input
-            value={doc.letter.title}
-            onChange={(e) => setLetter({ title: e.target.value })}
-            className="pd-input"
-          />
-          <label className="pd-sb-label" style={{ marginTop: 8 }}>Salutation</label>
-          <input
-            value={doc.letter.salutation}
-            onChange={(e) => setLetter({ salutation: e.target.value })}
-            className="pd-input"
-            placeholder="Dear Mr. Recipient Name"
-          />
-          <label className="pd-sb-label" style={{ marginTop: 8 }}>Closing line 1</label>
-          <input
-            value={doc.letter.closing}
-            onChange={(e) => setLetter({ closing: e.target.value })}
-            className="pd-input"
-            placeholder="Wishing you success!"
-          />
-          <label className="pd-sb-label" style={{ marginTop: 8 }}>Closing line 2 (optional)</label>
-          <input
-            value={doc.letter.closing2}
-            onChange={(e) => setLetter({ closing2: e.target.value })}
-            className="pd-input"
-            placeholder="Happy Working!"
-          />
-          <label className="pd-sb-label" style={{ marginTop: 8 }}>Sign-off</label>
-          <input
-            value={doc.letter.signoff}
-            onChange={(e) => setLetter({ signoff: e.target.value })}
-            className="pd-input"
-            placeholder="For, Prime Digitals."
-          />
-          <p className="pd-sb-label" style={{ marginTop: 10, lineHeight: 1.5, textTransform: "none", letterSpacing: 0 }}>
-            Edit the body paragraphs in the middle pane (Clauses).
-          </p>
-        </div>
-      )}
+      {doc.type === "letter" && (() => {
+        const l = doc.letter ?? {
+          template: "internship-offer" as LetterTemplate,
+          title: "Internship Offer Letter",
+          salutation: "Dear Mr. Recipient Name",
+          closing: "Wishing you success!",
+          closing2: "Happy Working!",
+          signoff: "For, Prime Digitals.",
+        };
+        return (
+          <div className="pd-sb-section">
+            <div className="pd-sb-title">Letter</div>
+            <label className="pd-sb-label">Template</label>
+            <select
+              value={l.template}
+              onChange={(e) => applyLetterTemplate(e.target.value as LetterTemplate)}
+              className="pd-input"
+            >
+              <option value="internship-offer">Internship Offer Letter</option>
+              <option value="job-offer">Job Offer Letter</option>
+              <option value="general">General / Blank Letter</option>
+            </select>
+            <label className="pd-sb-label" style={{ marginTop: 10 }}>Title</label>
+            <input
+              value={l.title}
+              onChange={(e) => setLetter({ title: e.target.value })}
+              className="pd-input"
+            />
+            <label className="pd-sb-label" style={{ marginTop: 8 }}>Salutation (recipient name)</label>
+            <input
+              value={l.salutation}
+              onChange={(e) => setLetter({ salutation: e.target.value })}
+              className="pd-input"
+              placeholder="Dear Mr. Krishna Mehta"
+            />
+            <label className="pd-sb-label" style={{ marginTop: 8 }}>Closing line 1</label>
+            <input
+              value={l.closing}
+              onChange={(e) => setLetter({ closing: e.target.value })}
+              className="pd-input"
+              placeholder="Wishing you success!"
+            />
+            <label className="pd-sb-label" style={{ marginTop: 8 }}>Closing line 2 (optional)</label>
+            <input
+              value={l.closing2}
+              onChange={(e) => setLetter({ closing2: e.target.value })}
+              className="pd-input"
+              placeholder="Happy Working!"
+            />
+            <label className="pd-sb-label" style={{ marginTop: 8 }}>Sign-off</label>
+            <input
+              value={l.signoff}
+              onChange={(e) => setLetter({ signoff: e.target.value })}
+              className="pd-input"
+              placeholder="For, Prime Digitals."
+            />
+            <p className="pd-sb-label" style={{ marginTop: 10, lineHeight: 1.5, textTransform: "none", letterSpacing: 0 }}>
+              Edit the body paragraphs in the middle pane (Clauses).
+            </p>
+          </div>
+        );
+      })()}
 
       <div className="pd-sb-section">
         <div className="pd-sb-title">Currency &amp; Numbering</div>

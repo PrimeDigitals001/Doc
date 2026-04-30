@@ -19,6 +19,7 @@ export function Editor() {
   const updateTaxRow = useStudio((s) => s.updateTaxRow);
   const removeTaxRow = useStudio((s) => s.removeTaxRow);
   const setPayment = useStudio((s) => s.setPayment);
+  const setLetter = useStudio((s) => s.setLetter);
 
   return (
     <div className="pd-editor">
@@ -59,35 +60,63 @@ export function Editor() {
         </div>
       </section>
 
-      <section className="pd-ed-section">
-        <h3 className="pd-ed-title">Recipient (To)</h3>
-        <div className="pd-ed-grid2">
-          <Field label="Name / Company" full>
-            <input
-              className="pd-input"
-              value={doc.parties.to.name}
-              onChange={(e) => setPartyTo({ name: e.target.value })}
-            />
-          </Field>
-          <Field label="Attn: (optional)" full>
-            <input
-              className="pd-input"
-              value={doc.meta.attn || ""}
-              onChange={(e) => setMeta({ attn: e.target.value })}
-              placeholder="Attn: Mr. Meet Patel"
-            />
-          </Field>
-          <Field label="Phone + email (multi-line)" full>
-            <textarea
-              className="pd-input"
-              rows={3}
-              value={doc.parties.to.lines}
-              onChange={(e) => setPartyTo({ lines: e.target.value })}
-              placeholder={"P : +91 00000 00000\nE : client@example.com"}
-            />
-          </Field>
-        </div>
-      </section>
+      {doc.type === "letter" ? (
+        <section className="pd-ed-section">
+          <h3 className="pd-ed-title">Recipient</h3>
+          <div className="pd-ed-grid2">
+            <Field label="Salutation (full line shown in the letter)" full>
+              <input
+                className="pd-input"
+                value={doc.letter?.salutation ?? ""}
+                onChange={(e) => setLetter({ salutation: e.target.value })}
+                placeholder="Dear Mr. Krishna Mehta"
+              />
+            </Field>
+            <p
+              className="pd-field-label"
+              style={{
+                gridColumn: "1 / -1",
+                textTransform: "none",
+                letterSpacing: 0,
+                lineHeight: 1.5,
+                marginTop: -4,
+              }}
+            >
+              Type the full salutation line — for example <em>Dear Mr. Krishna Mehta</em>. This appears at the top of the letter body.
+            </p>
+          </div>
+        </section>
+      ) : (
+        <section className="pd-ed-section">
+          <h3 className="pd-ed-title">Recipient (To)</h3>
+          <div className="pd-ed-grid2">
+            <Field label="Name / Company" full>
+              <input
+                className="pd-input"
+                value={doc.parties.to.name}
+                onChange={(e) => setPartyTo({ name: e.target.value })}
+              />
+            </Field>
+            <Field label="Attn: (optional)" full>
+              <input
+                className="pd-input"
+                value={doc.meta.attn || ""}
+                onChange={(e) => setMeta({ attn: e.target.value })}
+                placeholder="Attn: Mr. Meet Patel"
+              />
+            </Field>
+            <Field label="Phone + email (multi-line)" full>
+              <textarea
+                className="pd-input"
+                rows={3}
+                value={doc.parties.to.lines}
+                onChange={(e) => setPartyTo({ lines: e.target.value })}
+                placeholder={"P : +91 00000 00000\nE : client@example.com"}
+              />
+            </Field>
+          </div>
+        </section>
+      )}
 
       {HAS_ITEMS[doc.type] && (
         <section className="pd-ed-section">
