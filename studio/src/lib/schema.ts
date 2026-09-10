@@ -76,6 +76,31 @@ export type BandControls = {
   contactOffsetY: number;  // px, shift up(-) / down(+)
 };
 
+export type LayoutMode = "flow" | "free";
+
+/** Positional override for one element on the page. All values in px, page-space. */
+export type LayoutOverride = {
+  /** flow: translate delta. free: absolute left within .fg-body. */
+  dx: number;
+  /** flow: translate delta. free: absolute top within .fg-body. */
+  dy: number;
+  /** explicit width (px); undefined = natural */
+  w?: number;
+  /** explicit height (px); undefined = natural */
+  h?: number;
+  /** default "flow" */
+  mode?: LayoutMode;
+  /** free only — 0-based page the element is pinned to */
+  page?: number;
+  /** stacking order within the page; default 0 */
+  z?: number;
+};
+
+/** id → override. Ids are stable strings; see LAYOUT_ELEMENTS in lib/layout.ts */
+export type LayoutMap = Record<string, LayoutOverride>;
+
+export const EMPTY_OVERRIDE: LayoutOverride = { dx: 0, dy: 0 };
+
 export type LetterFields = {
   template: LetterTemplate;
   title: string;          // "Internship Offer Letter"
@@ -106,6 +131,8 @@ export type Doc = {
   clauses: Clause[];
   payment: PaymentDetails;
   bands: BandControls;
+  /** free-form positioning overrides, keyed by stable element id */
+  layout: LayoutMap;
   signature: {
     name: string;
     role: string;
@@ -114,6 +141,8 @@ export type Doc = {
   watermark: WatermarkPos;
   savedAt: number;
   savedName?: string;
+  /** set when this doc was produced by converting another (e.g. quotation → invoice) */
+  convertedFrom?: { id: string; type: DocType; docNumber: string };
 };
 
 export const DOC_TYPE_LABELS: Record<DocType, string> = {
@@ -246,11 +275,23 @@ export const LETTER_TEMPLATES: Record<
   },
 };
 
+export const DOC_NUMBER_PREFIX: Record<DocType, string> = {
+  quotation: "Q",
+  invoice: "INV",
+  agreement: "AGR",
+  tnc: "TNC",
+  letter: "LTR",
+};
+
+/** e.g. "INV-2026-4731". Random suffix — see the plan's notes on sequential numbering. */
+export function makeDocNumber(type: DocType): string {
+  const yr = new Date().getFullYear();
+  const num = Math.floor(1000 + Math.random() * 9000);
+  return `${DOC_NUMBER_PREFIX[type]}-${yr}-${num}`;
+}
+
 export function makeDefaultDoc(type: DocType): Doc {
   const today = new Date().toISOString().slice(0, 10);
-  const yr = new Date().getFullYear();
-  const prefix = { quotation: "Q", invoice: "INV", agreement: "AGR", tnc: "TNC", letter: "LTR" }[type];
-  const num = Math.floor(1000 + Math.random() * 9000);
   const isLetter = type === "letter";
   const tpl = isLetter ? LETTER_TEMPLATES["internship-offer"] : null;
 
@@ -258,7 +299,7 @@ export function makeDefaultDoc(type: DocType): Doc {
     id: makeId(),
     type,
     meta: {
-      docNumber: `${prefix}-${yr}-${num}`,
+      docNumber: makeDocNumber(type),
       date: today,
       subject:
         type === "quotation"
@@ -286,7 +327,7 @@ export function makeDefaultDoc(type: DocType): Doc {
     parties: {
       from: {
         name: "Prime Digitals",
-        lines: "Your registered address\nCity, State — PIN\nhello@primedigitals.example",
+        lines: "Your registered address\nCity, State — PIN\nbusiness@primedigitals.co.in",
       },
       to: {
         name: "Client Name",
@@ -352,7 +393,7 @@ export function makeDefaultDoc(type: DocType): Doc {
       advancePaid: 0,
       thankYouNote: "Thanks for your business!",
       contactPhone: "+91 79901 98105",
-      contactEmail: "hello@primedigitals.io",
+      contactEmail: "business@primedigitals.co.in",
     },
     bands: {
       topHeight: 174,
@@ -374,6 +415,7 @@ export function makeDefaultDoc(type: DocType): Doc {
       contactOffsetX: 0,
       contactOffsetY: 0,
     },
+    layout: {},
     signature: {
       name: "PRIME DIGITALS",
       role: "",

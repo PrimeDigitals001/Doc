@@ -160,23 +160,47 @@ export function Editor() {
                 onChange={(e) => setPayment({ thankYouNote: e.target.value })}
               />
             </Field>
-            <Field label="Contact phone">
-              <input
-                className="pd-input"
-                value={doc.payment.contactPhone}
-                onChange={(e) => setPayment({ contactPhone: e.target.value })}
-              />
-            </Field>
-            <Field label="Contact email">
-              <input
-                className="pd-input"
-                value={doc.payment.contactEmail}
-                onChange={(e) => setPayment({ contactEmail: e.target.value })}
-              />
-            </Field>
           </div>
         </section>
       )}
+
+      {/* Ungated: the contact block prints on EVERY document type, so it must be
+          editable on every document type. */}
+      <section className="pd-ed-section">
+        <h3 className="pd-ed-title">Contact details</h3>
+        <div className="pd-ed-grid2">
+          <Field label="Contact phone">
+            <input
+              className="pd-input"
+              value={doc.payment.contactPhone}
+              onChange={(e) => setPayment({ contactPhone: e.target.value })}
+              placeholder="+91 00000 00000"
+            />
+          </Field>
+          <Field label="Contact email">
+            <input
+              className="pd-input"
+              type="email"
+              value={doc.payment.contactEmail}
+              onChange={(e) => setPayment({ contactEmail: e.target.value })}
+              placeholder="business@primedigitals.co.in"
+            />
+          </Field>
+          <p
+            className="pd-field-label"
+            style={{
+              gridColumn: "1 / -1",
+              textTransform: "none",
+              letterSpacing: 0,
+              lineHeight: 1.5,
+              marginTop: -4,
+            }}
+          >
+            Shown at the bottom of the page. You can also double-click them directly in the
+            preview to edit.
+          </p>
+        </div>
+      </section>
 
       {HAS_ITEMS[doc.type] && (
         <section className="pd-ed-section">

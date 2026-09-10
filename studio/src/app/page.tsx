@@ -1,28 +1,58 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useCallback, useSyncExternalStore } from "react";
 import { Sidebar } from "@/components/studio/Sidebar";
 import { Editor } from "@/components/studio/Editor";
 import { FigmaPreview } from "@/components/studio/FigmaPreview";
 import { LibraryModal } from "@/components/studio/LibraryModal";
+import type { StudioMode } from "@/components/studio/layout-context";
 import { useStudio } from "@/lib/store";
 import { downloadPdf, triggerPrint } from "@/lib/pdf";
+
+/* The store is localStorage-backed, so its contents only exist on the client.
+   Render nothing on the server rather than hydrating against empty defaults. */
+const noopSubscribe = () => () => {};
+const useIsClient = () => useSyncExternalStore(noopSubscribe, () => true, () => false);
+
+const MODES: { id: StudioMode; label: string; hint: string }[] = [
+  { id: "move", label: "Move", hint: "Drag anything on the page to reposition it" },
+  { id: "edit", label: "Edit", hint: "Double-click any text on the page to edit it" },
+  { id: "preview", label: "Preview", hint: "Exactly what will print — no editing chrome" },
+];
 
 export default function Home() {
   const doc = useStudio((s) => s.doc);
   const saveAs = useStudio((s) => s.saveAs);
   const replaceDoc = useStudio((s) => s.replaceDoc);
+  const convertToInvoice = useStudio((s) => s.convertToInvoice);
 
-  const [mounted, setMounted] = useState(false);
+  const mounted = useIsClient();
   const [libOpen, setLibOpen] = useState(false);
+  const [mode, setMode] = useState<StudioMode>("move");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    setMounted(true);
+  const onSelect = useCallback((id: string | null) => {
+    setSelectedId(id);
+    if (id === null) setEditingId(null);
+  }, []);
+  const onBeginEdit = useCallback((id: string | null) => {
+    setEditingId(id);
+    if (id) setSelectedId(id);
   }, []);
 
   if (!mounted) return null;
+
+  // Switching to Preview clears any chrome, so Preview really is what prints.
+  function onPickMode(m: StudioMode) {
+    setMode(m);
+    if (m === "preview") {
+      setSelectedId(null);
+      setEditingId(null);
+    }
+  }
 
   function onSaveAs() {
     const suggested = doc.savedName || `${doc.type}-${doc.meta.docNumber}`;
@@ -58,6 +88,15 @@ export default function Home() {
     reader.readAsText(file);
   }
 
+  function onConvertToInvoice() {
+    const result = convertToInvoice();
+    if (!result) return;
+    alert(
+      `Quotation ${result.quotationNumber} saved to library.\n` +
+        `Invoice ${result.invoiceNumber} created, saved and opened.`
+    );
+  }
+
   async function onDownload() {
     if (!previewRef.current) return;
     try {
@@ -80,6 +119,27 @@ export default function Home() {
           </span>
         </div>
         <div className="pd-topbar__actions">
+          <div className="pd-modeswitch" role="group" aria-label="Editing mode">
+            {MODES.map((m) => (
+              <button
+                key={m.id}
+                title={m.hint}
+                onClick={() => onPickMode(m.id)}
+                className={`pd-modeswitch__btn${mode === m.id ? " is-active" : ""}`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          {doc.type === "quotation" && (
+            <button
+              className="pd-btn pd-btn--convert"
+              onClick={onConvertToInvoice}
+              title="Save this quotation and create a linked invoice from it"
+            >
+              → Convert to Invoice
+            </button>
+          )}
           <button className="pd-btn pd-btn--ghost" onClick={triggerPrint}>Print</button>
           <button className="pd-btn pd-btn--primary" onClick={onDownload}>Download PDF</button>
         </div>
@@ -100,7 +160,15 @@ export default function Home() {
         </div>
 
         <div className="pd-studio__preview">
-          <FigmaPreview doc={doc} ref={previewRef} />
+          <FigmaPreview
+            doc={doc}
+            ref={previewRef}
+            mode={mode}
+            selectedId={selectedId}
+            editingId={editingId}
+            onSelect={onSelect}
+            onBeginEdit={onBeginEdit}
+          />
         </div>
       </div>
 

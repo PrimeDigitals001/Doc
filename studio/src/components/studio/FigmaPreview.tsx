@@ -1,211 +1,343 @@
 "use client";
 
-import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { Doc, Item } from "@/lib/schema";
+import { HAS_ITEMS, IS_LETTER } from "@/lib/schema";
+import { useStudio } from "@/lib/store";
+import { LayoutCtx, MEASURE_CTX } from "./layout-context";
+import type { StudioMode } from "./layout-context";
+import { Positionable } from "./Positionable";
+import { InlineText } from "./InlineText";
+import { TopBand, BottomBand } from "./preview/Bands";
+import { EndBlock } from "./preview/EndBlock";
+import { ItemsTable, ItemRowMeasure, ItemsHeadMeasure } from "./preview/ItemsTable";
+import { rewrapP } from "./preview/html";
 
-// Avoid useLayoutEffect SSR warning
-const useIsoLayoutEffect =
-  typeof window !== "undefined" ? useLayoutEffect : useEffect;
-import type { Doc } from "@/lib/schema";
-import { DOC_TYPE_EYEBROW, HAS_ITEMS, IS_LETTER } from "@/lib/schema";
-import { computeTotals, formatAmount } from "@/lib/money";
-
-type Props = { doc: Doc };
+// Avoid the useLayoutEffect SSR warning
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 // A4 at 96dpi: 794 × 1123 px
 const PAGE_PX = 1123;
-const TOP_BAND_PX = 110;      // height reserved for top-design band
-const BOTTOM_BAND_PX = 90;    // height reserved for bottom-design band
-const SIDE_GUTTER_PX = 48;    // left/right body padding
-const LAST_PAGE_RESERVE = 280; // payment+terms+stamp reserve on last page
-const CONTENT_PX = PAGE_PX - TOP_BAND_PX - BOTTOM_BAND_PX - 40;
+const SIDE_GUTTER_PX = 48;
+const BODY_PAD_TOP = 20; // .fg-body padding-top
+const SAFETY_PX = 12;
+const LAST_PAGE_RESERVE = 280; // payment + terms + stamp reserve on the last page
+const BLOCK_GAP_PX = 16;
 
-type Block = {
-  key: string;
-  node: React.ReactNode;
+type Block =
+  | { kind: "node"; key: string; node: React.ReactNode }
+  | { kind: "item"; key: string; item: Item };
+
+type Props = {
+  doc: Doc;
+  mode?: StudioMode;
+  selectedId?: string | null;
+  editingId?: string | null;
+  onSelect?: (id: string | null) => void;
+  onBeginEdit?: (id: string | null) => void;
 };
 
-export const FigmaPreview = forwardRef<HTMLDivElement, Props>(
-  function FigmaPreview({ doc }, ref) {
-    const totals = useMemo(
-      () => computeTotals(doc.items, doc.money.taxRows),
-      [doc.items, doc.money.taxRows]
-    );
-    const fmt = (n: number) => formatAmount(n, doc.money.numbering, doc.money.currency);
+export const FigmaPreview = forwardRef<HTMLDivElement, Props>(function FigmaPreview(
+  { doc, mode = "move", selectedId = null, editingId = null, onSelect, onBeginEdit },
+  ref
+) {
+  const setMeta = useStudio((s) => s.setMeta);
+  const setPartyTo = useStudio((s) => s.setPartyTo);
+  const setLetter = useStudio((s) => s.setLetter);
+  const updateClause = useStudio((s) => s.updateClause);
 
-    // Ordered blocks that live ABOVE the "end block" (payment/terms/stamp)
-    const blocks: Block[] = useMemo(() => {
-      const list: Block[] = [];
+  const select = useCallback((id: string | null) => onSelect?.(id), [onSelect]);
+  const beginEdit = useCallback((id: string | null) => onBeginEdit?.(id), [onBeginEdit]);
 
-      // ----- LETTER LAYOUT -----
-      if (IS_LETTER[doc.type] && doc.letter) {
-        list.push({
-          key: "letter-date",
-          node: (
-            <div className="fg-letterDate">{formatDate(doc.meta.date)}</div>
-          ),
-        });
-        list.push({
-          key: "letter-title",
-          node: <h1 className="fg-letterTitle">{doc.letter.title}</h1>,
-        });
-        list.push({
-          key: "letter-salutation",
-          node: <div className="fg-letterSalutation">{doc.letter.salutation}</div>,
-        });
-        // Clauses (body paragraphs) handled below in the existing loop — but for letter
-        // we want them rendered as paragraphs, not numbered terms. We push each as its
-        // own block so it can paginate.
-        doc.clauses.forEach((c) => {
-          list.push({
-            key: `letter-body-${c.id}`,
-            node: (
-              <div className="fg-letterBody">
-                {c.title && <h3 className="fg-letterBody__heading">{c.title}</h3>}
-                <div
-                  className="fg-letterBody__prose"
-                  dangerouslySetInnerHTML={{ __html: c.bodyHtml }}
-                />
-              </div>
-            ),
-          });
-        });
-        // Sign-off lines
-        list.push({
-          key: "letter-closing",
-          node: (
-            <div className="fg-letterClosing">
-              {doc.letter.closing && <div>{doc.letter.closing}</div>}
-              {doc.letter.closing2 && <div>{doc.letter.closing2}</div>}
-            </div>
-          ),
-        });
-        list.push({
-          key: "letter-signoff",
-          node: <div className="fg-letterSignoff">{doc.letter.signoff}</div>,
-        });
-        return list;
-      }
+  /**
+   * Real usable height, derived from the live band values.
+   *
+   * `.fg-topband` is `position: relative` — it sits in flow and consumes
+   * `topHeight` — while `.fg-bottomband` is absolute, so its top edge is
+   * `PAGE_PX - bottomHeight + bottomOffsetY`. The old hardcoded 110/90 reserve
+   * overfilled every page by ~120px.
+   */
+  const contentPx = useMemo(() => {
+    const top = doc.bands.topHeight + BODY_PAD_TOP;
+    const bottom = PAGE_PX - doc.bands.bottomHeight + doc.bands.bottomOffsetY;
+    return Math.max(200, bottom - top - SAFETY_PX);
+  }, [doc.bands.topHeight, doc.bands.bottomHeight, doc.bands.bottomOffsetY]);
 
-      // ----- INVOICE / QUOTATION / AGREEMENT / TNC -----
-      // 1. Invoice To + ID row
+  // Ordered blocks living ABOVE the end block (payment/terms/stamp).
+  const blocks: Block[] = useMemo(() => {
+    const list: Block[] = [];
+
+    // ----- LETTER LAYOUT -----
+    if (IS_LETTER[doc.type] && doc.letter) {
+      const l = doc.letter;
       list.push({
-        key: "header-row",
+        kind: "node",
+        key: "letter-date",
         node: (
-          <div className="fg-topRow">
-            <div className="fg-invoiceTo">
-              <div className="fg-invoiceTo__label">
-                {doc.type === "invoice"
-                  ? "Invoice To:"
-                  : doc.type === "quotation"
-                  ? "Quotation To:"
-                  : "Party:"}
-              </div>
-              <div className="fg-invoiceTo__name">{doc.parties.to.name}</div>
-              {doc.meta.attn && <div className="fg-invoiceTo__attn">{doc.meta.attn}</div>}
-              <div className="fg-invoiceTo__contact" style={{ whiteSpace: "pre-line" }}>
-                {doc.parties.to.lines}
-              </div>
-            </div>
-            <div className="fg-idBox">
-              <div className="fg-idPill">
-                {doc.type === "invoice"
-                  ? "INVOICE ID"
-                  : doc.type === "quotation"
-                  ? "QUOTATION ID"
-                  : doc.type === "agreement"
-                  ? "AGREEMENT ID"
-                  : "DOCUMENT ID"}
-                : {doc.meta.docNumber}
-              </div>
-              <div className="fg-idDate">
-                <span className="fg-idDate__label">
-                  {doc.type === "invoice" ? "Invoice Date" : doc.type === "quotation" ? "Quotation Date" : "Date"}
-                </span>
-                <span className="fg-idDate__value">{formatDate(doc.meta.date)}</span>
-              </div>
-            </div>
-          </div>
+          <Positionable id="letter-date" className="fg-letterDate">
+            {formatDate(doc.meta.date)}
+          </Positionable>
         ),
       });
-
-      // 2. Items — split into per-row blocks so the table can flow across pages.
-      // Each row is its own block; the renderer wraps consecutive item-row blocks
-      // into a single <table> with header re-emitted on every page.
-      if (HAS_ITEMS[doc.type] && doc.items.length > 0) {
-        doc.items.forEach((it) => {
-          list.push({
-            key: `item-${it.id}`,
-            node: (
-              <ItemRowFragment
-                title={it.title || ""}
-                sub={it.sub || ""}
-                qty={it.qty}
-                rate={it.rate}
-                amount={it.qty * it.rate}
-                doc={doc}
+      list.push({
+        kind: "node",
+        key: "letter-title",
+        node: (
+          <Positionable id="letter-title" as="h1" className="fg-letterTitle">
+            <InlineText
+              id="letter-title-text"
+              value={l.title}
+              onCommit={(v) => setLetter({ title: v })}
+            />
+          </Positionable>
+        ),
+      });
+      list.push({
+        kind: "node",
+        key: "letter-salutation",
+        node: (
+          <Positionable id="letter-salutation" className="fg-letterSalutation">
+            <InlineText
+              id="letter-salutation-text"
+              value={l.salutation}
+              onCommit={(v) => setLetter({ salutation: v })}
+            />
+          </Positionable>
+        ),
+      });
+      doc.clauses.forEach((c) => {
+        list.push({
+          kind: "node",
+          key: `letter-body-${c.id}`,
+          node: (
+            <Positionable id={`letter-body-${c.id}`} className="fg-letterBody">
+              {c.title && (
+                <InlineText
+                  id={`letter-body-${c.id}-heading`}
+                  as="h3"
+                  className="fg-letterBody__heading"
+                  value={c.title}
+                  onCommit={(v) => updateClause(c.id, { title: v })}
+                />
+              )}
+              <InlineText
+                id={`letter-body-${c.id}-prose`}
+                as="div"
+                className="fg-letterBody__prose"
+                html
+                value={c.bodyHtml}
+                onCommit={(v) => updateClause(c.id, { bodyHtml: rewrapP(v) })}
               />
-            ),
-          });
+            </Positionable>
+          ),
         });
-      }
-
+      });
+      list.push({
+        kind: "node",
+        key: "letter-closing",
+        node: (
+          <Positionable id="letter-closing" className="fg-letterClosing">
+            {l.closing && (
+              <InlineText
+                id="letter-closing-1"
+                as="div"
+                value={l.closing}
+                onCommit={(v) => setLetter({ closing: v })}
+              />
+            )}
+            {l.closing2 && (
+              <InlineText
+                id="letter-closing-2"
+                as="div"
+                value={l.closing2}
+                onCommit={(v) => setLetter({ closing2: v })}
+              />
+            )}
+          </Positionable>
+        ),
+      });
+      list.push({
+        kind: "node",
+        key: "letter-signoff",
+        node: (
+          <Positionable id="letter-signoff" className="fg-letterSignoff">
+            <InlineText
+              id="letter-signoff-text"
+              value={l.signoff}
+              onCommit={(v) => setLetter({ signoff: v })}
+            />
+          </Positionable>
+        ),
+      });
       return list;
-    }, [doc, fmt]);
+    }
 
-    // Measure & paginate. We store *keys* (strings) for the pages — not node refs — so
-    // re-renders with identical pagination don't trigger infinite setState loops.
-    const measureRef = useRef<HTMLDivElement>(null);
-    const [pageKeys, setPageKeys] = useState<string[][]>(() => [blocks.map((b) => b.key)]);
+    // ----- INVOICE / QUOTATION / AGREEMENT / TNC -----
+    list.push({
+      kind: "node",
+      key: "header-row",
+      node: (
+        <Positionable id="header-row" className="fg-topRow">
+          <div className="fg-invoiceTo">
+            <div className="fg-invoiceTo__label">
+              {doc.type === "invoice"
+                ? "Invoice To:"
+                : doc.type === "quotation"
+                  ? "Quotation To:"
+                  : "Party:"}
+            </div>
+            <InlineText
+              id="to-name"
+              as="div"
+              className="fg-invoiceTo__name"
+              value={doc.parties.to.name}
+              onCommit={(v) => setPartyTo({ name: v })}
+              placeholder="Client name"
+            />
+            {doc.meta.attn && (
+              <InlineText
+                id="to-attn"
+                as="div"
+                className="fg-invoiceTo__attn"
+                value={doc.meta.attn}
+                onCommit={(v) => setMeta({ attn: v })}
+              />
+            )}
+            <InlineText
+              id="to-lines"
+              as="div"
+              className="fg-invoiceTo__contact"
+              style={{ whiteSpace: "pre-line" }}
+              multiline
+              value={doc.parties.to.lines}
+              onCommit={(v) => setPartyTo({ lines: v })}
+            />
+          </div>
+          <div className="fg-idBox">
+            <div className="fg-idPill">
+              {doc.type === "invoice"
+                ? "INVOICE ID"
+                : doc.type === "quotation"
+                  ? "QUOTATION ID"
+                  : doc.type === "agreement"
+                    ? "AGREEMENT ID"
+                    : "DOCUMENT ID"}
+              :{" "}
+              <InlineText
+                id="doc-number"
+                value={doc.meta.docNumber}
+                onCommit={(v) => setMeta({ docNumber: v })}
+              />
+            </div>
+            <div className="fg-idDate">
+              <span className="fg-idDate__label">
+                {doc.type === "invoice"
+                  ? "Invoice Date"
+                  : doc.type === "quotation"
+                    ? "Quotation Date"
+                    : "Date"}
+              </span>
+              <span className="fg-idDate__value">{formatDate(doc.meta.date)}</span>
+            </div>
+          </div>
+        </Positionable>
+      ),
+    });
 
-    useIsoLayoutEffect(() => {
-      const root = measureRef.current;
-      if (!root) return;
-      const heights: number[] = [];
-      for (let i = 0; i < blocks.length; i++) {
-        const el = root.children[i] as HTMLElement | undefined;
-        heights.push(el?.offsetHeight ?? 0);
+    // One block per line item so the table can flow across pages; the renderer
+    // regroups consecutive item blocks into a single table per page.
+    if (HAS_ITEMS[doc.type]) {
+      doc.items.forEach((it) => {
+        list.push({ kind: "item", key: `item-${it.id}`, item: it });
+      });
+    }
+
+    return list;
+  }, [doc, setMeta, setPartyTo, setLetter, updateClause]);
+
+  // Measure & paginate. We store *keys*, not nodes, so re-renders with identical
+  // pagination don't trigger infinite setState loops.
+  const measureRef = useRef<HTMLDivElement>(null);
+  const headMeasureRef = useRef<HTMLDivElement>(null);
+  const [pageKeys, setPageKeys] = useState<string[][]>(() => [blocks.map((b) => b.key)]);
+
+  useIsoLayoutEffect(() => {
+    const root = measureRef.current;
+    if (!root) return;
+    const heights: number[] = [];
+    for (let i = 0; i < blocks.length; i++) {
+      const el = root.children[i] as HTMLElement | undefined;
+      heights.push(el?.offsetHeight ?? 0);
+    }
+    // The items <thead> is re-emitted on every page that carries items, so its
+    // height has to be reserved once per such page.
+    const headH = headMeasureRef.current?.offsetHeight ?? 0;
+
+    const newPages: string[][] = [];
+    let current: string[] = [];
+    let used = 0;
+    let pageHasItems = false;
+    for (let i = 0; i < blocks.length; i++) {
+      const h = heights[i];
+      const isItem = blocks[i].kind === "item";
+      const isLast = i === blocks.length - 1;
+      const reserve = isLast ? LAST_PAGE_RESERVE : 0;
+      const headCost = isItem && !pageHasItems ? headH : 0;
+      if (current.length > 0 && used + headCost + h + reserve > contentPx) {
+        newPages.push(current);
+        current = [];
+        used = isItem ? headH : 0;
+        pageHasItems = isItem;
+      } else {
+        used += headCost;
+        if (isItem) pageHasItems = true;
       }
-      const newPages: string[][] = [];
-      let current: string[] = [];
-      let used = 0;
-      for (let i = 0; i < blocks.length; i++) {
-        const h = heights[i];
-        const isLast = i === blocks.length - 1;
-        const reserve = isLast ? LAST_PAGE_RESERVE : 0;
-        if (current.length > 0 && used + h + reserve > CONTENT_PX) {
-          newPages.push(current);
-          current = [];
-          used = 0;
-        }
-        current.push(blocks[i].key);
-        used += h + 16;
-      }
-      newPages.push(current);
-      if (used + LAST_PAGE_RESERVE > CONTENT_PX && current.length > 0) {
-        newPages.push([]);
-      }
-      // Only update if changed (shallow compare)
-      const same =
-        newPages.length === pageKeys.length &&
-        newPages.every(
-          (p, i) =>
-            p.length === pageKeys[i].length && p.every((k, j) => k === pageKeys[i][j])
-        );
-      if (!same) setPageKeys(newPages);
-    }, [blocks, pageKeys]);
+      current.push(blocks[i].key);
+      used += h + BLOCK_GAP_PX;
+    }
+    newPages.push(current);
+    if (used + LAST_PAGE_RESERVE > contentPx && current.length > 0) {
+      newPages.push([]);
+    }
+    const same =
+      newPages.length === pageKeys.length &&
+      newPages.every(
+        (p, i) => p.length === pageKeys[i].length && p.every((k, j) => k === pageKeys[i][j])
+      );
+    if (!same) setPageKeys(newPages);
+  }, [blocks, pageKeys, contentPx]);
 
-    const blocksByKey = useMemo(() => {
-      const map = new Map<string, Block>();
-      blocks.forEach((b) => map.set(b.key, b));
-      return map;
-    }, [blocks]);
-    const pages: Block[][] = pageKeys.map((keys) =>
-      keys.map((k) => blocksByKey.get(k)).filter(Boolean) as Block[]
-    );
+  const blocksByKey = useMemo(() => {
+    const map = new Map<string, Block>();
+    blocks.forEach((b) => map.set(b.key, b));
+    return map;
+  }, [blocks]);
 
-    return (
-      <div ref={ref} className="fg-pages">
-        {/* Hidden measurement */}
+  const pages: Block[][] = pageKeys.map(
+    (keys) => keys.map((k) => blocksByKey.get(k)).filter(Boolean) as Block[]
+  );
+
+  const interactive = mode !== "preview";
+
+  return (
+    <div
+      ref={ref}
+      className="fg-pages"
+      onPointerDown={(e) => {
+        // Click on empty space around/inside a page → deselect
+        if (e.target === e.currentTarget) select(null);
+      }}
+    >
+      {/* Hidden measurement pass — rendered inert via MEASURE_CTX */}
+      <LayoutCtx.Provider value={MEASURE_CTX}>
         <div
           ref={measureRef}
           aria-hidden
@@ -219,275 +351,94 @@ export const FigmaPreview = forwardRef<HTMLDivElement, Props>(
           }}
         >
           {blocks.map((b) => (
-            <div key={b.key}>{b.node}</div>
+            <div key={b.key}>
+              {b.kind === "item" ? <ItemRowMeasure item={b.item} doc={doc} /> : b.node}
+            </div>
           ))}
         </div>
+        <div
+          ref={headMeasureRef}
+          aria-hidden
+          style={{
+            position: "absolute",
+            visibility: "hidden",
+            pointerEvents: "none",
+            width: `calc(210mm - ${SIDE_GUTTER_PX * 2}px)`,
+            left: -99999,
+            top: 0,
+          }}
+        >
+          <ItemsHeadMeasure />
+        </div>
+      </LayoutCtx.Provider>
 
-        {pages.map((pageBlocks, pi) => {
-          const isLast = pi === pages.length - 1;
-          return (
-            <section key={pi} className="fg-page">
-              {/* Top decorative band */}
+      {pages.map((pageBlocks, pi) => {
+        const isLast = pi === pages.length - 1;
+        return (
+          <LayoutCtx.Provider
+            key={pi}
+            value={{
+              measuring: false,
+              interactive,
+              mode,
+              selectedId,
+              editingId,
+              pageIndex: pi,
+              select,
+              beginEdit,
+            }}
+          >
+            <section className="fg-page">
+              <TopBand doc={doc} />
+
               <div
-                className="fg-topband"
-                style={{
-                  height: doc.bands.topHeight,
-                  transform: `translate(${doc.bands.topOffsetX}px, ${doc.bands.topOffsetY}px)`,
+                className="fg-body"
+                onPointerDown={(e) => {
+                  if (e.target === e.currentTarget) select(null);
                 }}
               >
-                <img src="/brand/header-ribbon.svg" alt="" aria-hidden className="fg-topband__bg" />
-                <img
-                  src="/brand/logo.png"
-                  alt="Prime Digitals"
-                  className="fg-topband__logo"
-                  style={{
-                    left: doc.bands.topLogoLeft,
-                    height: doc.bands.topLogoSize,
-                    transform: `translateY(calc(-50% + ${doc.bands.topLogoTop}px))`,
-                  }}
-                />
-                {!IS_LETTER[doc.type] && (
-                  <div
-                    className="fg-topband__title"
-                    style={{
-                      right: doc.bands.topTitleRight,
-                      fontSize: doc.bands.topTitleSize,
-                      transform: `translateY(calc(-50% + ${doc.bands.topTitleTop}px))`,
-                    }}
-                  >
-                    {DOC_TYPE_EYEBROW[doc.type]}
-                  </div>
-                )}
+                {renderPageBlocks(pageBlocks, doc)}
+                {isLast && <EndBlock doc={doc} />}
               </div>
 
-              {/* Body */}
-              <div className="fg-body">
-                {renderPageBlocks(pageBlocks)}
-
-                {isLast && (
-                  <div className="fg-endblock">
-                    {/* Payment + totals row (invoices/quotations only) */}
-                    {HAS_ITEMS[doc.type] && (
-                      <div className="fg-payRow">
-                        <div className="fg-payment">
-                          <div className="fg-payment__title">Payment method</div>
-                          <div className="fg-payment__line">
-                            <strong>UPI ID:</strong> {doc.payment.upiId}
-                          </div>
-                          <div className="fg-payment__line">
-                            <strong>Bank Details:</strong> {doc.payment.bankAccount}
-                          </div>
-                          {doc.payment.bankIfsc && (
-                            <div className="fg-payment__line fg-payment__ifsc">{doc.payment.bankIfsc}</div>
-                          )}
-                        </div>
-                        <div className="fg-totals">
-                          <div className="fg-totals__row">
-                            <span>Total Project Cost:</span>
-                            <span className="fg-totals__num">{fmtNum(totals.grand, doc)}</span>
-                          </div>
-                          {doc.payment.advancePaid > 0 && (
-                            <>
-                              <div className="fg-totals__row">
-                                <span>Advance Paid:</span>
-                                <span className="fg-totals__num">{fmtNum(doc.payment.advancePaid, doc)}</span>
-                              </div>
-                              <div className="fg-totals__row">
-                                <span>Amount Pending:</span>
-                                <span className="fg-totals__num">{fmtNum(totals.grand - doc.payment.advancePaid, doc)}</span>
-                              </div>
-                            </>
-                          )}
-                          <div className="fg-grand">
-                            <span>Grand Total</span>
-                            <span className="fg-grand__num">{fmtNum(totals.grand, doc)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Terms (not on letters — clauses are body paragraphs there) */}
-                    {!IS_LETTER[doc.type] && doc.clauses.length > 0 && (
-                      <div className="fg-terms">
-                        <div className="fg-terms__title">Terms &amp; Conditions:</div>
-                        <ol className="fg-terms__list">
-                          {doc.clauses.map((c) => (
-                            <li key={c.id}>
-                              {c.title && <strong>{c.title}: </strong>}
-                              <span dangerouslySetInnerHTML={{ __html: stripP(c.bodyHtml) }} />
-                            </li>
-                          ))}
-                        </ol>
-                      </div>
-                    )}
-
-                    {!IS_LETTER[doc.type] && <div className="fg-thanks">{doc.payment.thankYouNote}</div>}
-
-                    {/* Stamp + contact */}
-                    <div className="fg-stampRow">
-                      <div
-                        className="fg-contactCol"
-                        style={{
-                          fontSize: doc.bands.contactFontSize,
-                          transform: `translate(${doc.bands.contactOffsetX}px, ${doc.bands.contactOffsetY}px)`,
-                        }}
-                      >
-                        <div className="fg-contactLine">
-                          <span className="fg-contactIcon fg-contactIcon--phone">📞</span>
-                          <span>{doc.payment.contactPhone}</span>
-                        </div>
-                        <div className="fg-contactLine">
-                          <span className="fg-contactIcon fg-contactIcon--mail">✉</span>
-                          <span>{doc.payment.contactEmail}</span>
-                        </div>
-                      </div>
-                      <div
-                        className="fg-stampCol"
-                        style={{
-                          transform: `translate(${doc.bands.stampOffsetX}px, ${doc.bands.stampOffsetY}px)`,
-                        }}
-                      >
-                        {doc.signature.dataUrl ? (
-                          <img
-                            src={doc.signature.dataUrl}
-                            alt="Signature"
-                            className="fg-stamp__img"
-                            style={{ width: doc.bands.stampSize, height: doc.bands.stampSize }}
-                          />
-                        ) : (
-                          <img
-                            src="/brand/logomark.png"
-                            alt=""
-                            className="fg-stamp__img"
-                            style={{ width: doc.bands.stampSize, height: doc.bands.stampSize }}
-                          />
-                        )}
-                        <div className="fg-stamp__name">{doc.signature.name}</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Page number */}
               {pages.length > 1 && (
-                <div className="fg-pagenum">
+                <Positionable id="pagenum" className="fg-pagenum">
                   Page {pi + 1} / {pages.length}
-                </div>
+                </Positionable>
               )}
 
-              {/* Bottom decorative band */}
-              <div
-                className="fg-bottomband"
-                style={{
-                  height: doc.bands.bottomHeight,
-                  transform: `translate(${doc.bands.bottomOffsetX}px, ${doc.bands.bottomOffsetY}px)`,
-                }}
-              >
-                <img src="/brand/footer-ribbon.svg" alt="" aria-hidden className="fg-bottomband__bg" />
-              </div>
+              <BottomBand doc={doc} />
             </section>
-          );
-        })}
-      </div>
-    );
-  }
-);
-
-function fmtNum(n: number, doc: Doc): string {
-  return formatAmount(n, doc.money.numbering, doc.money.currency);
-}
-
-/** Single row used both by measurement (wrapped in a tiny table) and by render. */
-function ItemRowFragment({
-  title,
-  sub,
-  qty,
-  rate,
-  amount,
-  doc,
-}: {
-  title: string;
-  sub: string;
-  qty: number;
-  rate: number;
-  amount: number;
-  doc: Doc;
-}) {
-  // For measurement we render a complete tiny table so the row's natural height
-  // (with its own header background context) is accurate.
-  return (
-    <table className="fg-items fg-items--measure">
-      <tbody>
-        <tr>
-          <td>
-            <div className="fg-items__title">{title}</div>
-            {sub && <div className="fg-items__sub">{sub}</div>}
-          </td>
-          <td className="center fg-items__qty">{String(qty).padStart(2, "0")}</td>
-          <td className="center fg-items__num">{fmtNum(rate, doc)}</td>
-          <td className="center fg-items__num">{fmtNum(amount, doc)}</td>
-        </tr>
-      </tbody>
-    </table>
+          </LayoutCtx.Provider>
+        );
+      })}
+    </div>
   );
-}
+});
 
-/**
- * Render a page's blocks. Consecutive `item-*` blocks are grouped into a single
- * <table> with the header re-emitted on this page.
- */
-function renderPageBlocks(pageBlocks: Block[]): React.ReactNode {
+/** Consecutive item blocks are grouped into one table, header re-emitted per page. */
+function renderPageBlocks(pageBlocks: Block[], doc: Doc): React.ReactNode {
   const out: React.ReactNode[] = [];
-  let buffer: Block[] = [];
+  let buffer: Item[] = [];
+  let bufferKey = "";
 
-  const flushItems = () => {
+  const flush = () => {
     if (buffer.length === 0) return;
     out.push(
-      <table key={`items-${buffer[0].key}`} className="fg-items">
-        <thead>
-          <tr>
-            <th>Item description</th>
-            <th className="center">Quantity</th>
-            <th className="center">Unite Price</th>
-            <th className="center">Total Price</th>
-          </tr>
-        </thead>
-        <tbody>
-          {buffer.map((b) => {
-            // Each item block's node is an ItemRowFragment whose root <table>
-            // wraps a single <tbody><tr>. Re-render the row inline here.
-            const props = (b.node as React.ReactElement<{
-              title: string;
-              sub: string;
-              qty: number;
-              rate: number;
-              amount: number;
-              doc: Doc;
-            }>).props;
-            return (
-              <tr key={b.key}>
-                <td>
-                  <div className="fg-items__title">{props.title}</div>
-                  {props.sub && <div className="fg-items__sub">{props.sub}</div>}
-                </td>
-                <td className="center fg-items__qty">{String(props.qty).padStart(2, "0")}</td>
-                <td className="center fg-items__num">{fmtNum(props.rate, props.doc)}</td>
-                <td className="center fg-items__num">{fmtNum(props.amount, props.doc)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <Positionable key={`items-${bufferKey}`} id="items-table">
+        <ItemsTable items={buffer} doc={doc} />
+      </Positionable>
     );
     buffer = [];
+    bufferKey = "";
   };
 
   pageBlocks.forEach((b) => {
-    if (b.key.startsWith("item-")) {
-      buffer.push(b);
+    if (b.kind === "item") {
+      if (buffer.length === 0) bufferKey = b.key;
+      buffer.push(b.item);
     } else {
-      flushItems();
+      flush();
       out.push(
         <div key={b.key} className="fg-block">
           {b.node}
@@ -495,24 +446,19 @@ function renderPageBlocks(pageBlocks: Block[]): React.ReactNode {
       );
     }
   });
-  flushItems();
+  flush();
 
   return out;
-}
-
-function stripP(html: string): string {
-  // Strip outer <p> so it sits inside a <li> cleanly
-  return html
-    .replace(/^\s*<p[^>]*>/i, "")
-    .replace(/<\/p>\s*$/i, "")
-    .replace(/<\/p>\s*<p[^>]*>/gi, "<br/>");
 }
 
 function formatDate(iso: string): string {
   if (!iso) return "";
   try {
-    const d = new Date(iso);
-    return d.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
+    return new Date(iso).toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   } catch {
     return iso;
   }

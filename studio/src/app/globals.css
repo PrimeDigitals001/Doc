@@ -852,6 +852,14 @@ textarea.pd-input { resize: vertical; line-height: 1.5; }
   .pd-studio__preview { padding: 0 !important; max-height: none !important; background: white !important; overflow: visible !important; }
 }
 
+/* Positioning context for draggable wrappers, so the selection badge anchors to
+   the element. Declared BEFORE the .fg-* rules on purpose: both are single-class
+   selectors, so source order decides, and anything with its own explicit
+   `position` (the bottom band, the title, the page number) must keep it. */
+.pd-pos {
+  position: relative;
+}
+
 /* =============================================================
    FIGMA-MATCHED DOCUMENT LAYOUT (Invoice / Quotation / Agreement / T&C)
    ============================================================= */
@@ -1234,7 +1242,164 @@ textarea.pd-input { resize: vertical; line-height: 1.5; }
 .fg-terms__list p { margin: 0; }
 .fg-terms__list ul, .fg-terms__list ol { margin: 2px 0 2px 16px; }
 
+/* =============================================================
+   FREE-FORM LAYOUT CHROME (screen only — all of it is hidden in print)
+   ============================================================= */
+
+/* The logo is wrapped so it can be dragged; the wrapper carries the position. */
+.fg-topband__logo-wrap {
+  position: absolute;
+  top: 50%;
+  left: 28px;
+  z-index: 2;
+  display: block;
+  font-size: 0;
+  line-height: 0;
+}
+.fg-topband__logo {
+  position: static;
+  transform: none;
+  display: block;
+  width: auto;
+}
+
+.pd-pos[data-draggable="true"] {
+  cursor: move;
+}
+/* the seeded width is a border-box measurement */
+.pd-pos.is-free {
+  box-sizing: border-box;
+}
+.pd-pos[data-draggable="true"]:hover {
+  outline: 1px dashed rgba(0, 174, 239, 0.55);
+  outline-offset: 2px;
+}
+.pd-pos[data-draggable="true"]:focus {
+  outline: 1.5px solid rgba(0, 174, 239, 0.8);
+  outline-offset: 2px;
+}
+/* `outline`, never `border` — outlines don't affect layout, so a stray class
+   can never shift the printed page. */
+.pd-pos.is-selected {
+  outline: 1.5px solid #00aeef;
+  outline-offset: 2px;
+}
+.pd-pos.is-free.is-selected {
+  outline-color: #f59e0b;
+}
+.pd-pos.is-offpage {
+  outline: 1.5px solid #ef4444 !important;
+}
+.pd-pos.is-editing {
+  cursor: text;
+}
+
+.pd-pos__chrome {
+  position: absolute;
+  top: -21px;
+  left: 0;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  z-index: 40;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  font-weight: 600;
+  cursor: default;
+}
+.pd-pos__badge {
+  background: #00aeef;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.pd-pos__btn {
+  background: #18253a;
+  color: #fff;
+  border: 0;
+  border-radius: 3px;
+  padding: 2px 6px;
+  line-height: 1;
+  cursor: pointer;
+  font-size: 11px;
+}
+.pd-pos__btn:hover {
+  background: #2b3d5c;
+}
+.pd-pos__btn.is-on {
+  background: #f59e0b;
+  color: #18253a;
+}
+
+/* Inline (click-to-edit) text on the page */
+.pd-inline {
+  border-radius: 2px;
+  transition: background 0.12s ease;
+}
+.pd-inline:hover {
+  background: rgba(0, 174, 239, 0.1);
+  box-shadow: 0 0 0 2px rgba(0, 174, 239, 0.1);
+}
+.pd-inline.is-editing {
+  background: rgba(34, 197, 94, 0.1);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.45);
+  outline: none;
+  cursor: text;
+}
+.pd-inline[data-empty="true"]:not(.is-editing)::before {
+  content: attr(data-placeholder);
+  opacity: 0.4;
+}
+
+/* Mode switcher in the topbar */
+.pd-modeswitch {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+.pd-modeswitch__btn {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.65;
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.pd-modeswitch__btn:hover {
+  opacity: 1;
+}
+.pd-modeswitch__btn.is-active {
+  background: #00aeef;
+  color: #fff;
+  opacity: 1;
+  font-weight: 600;
+}
+
+.pd-btn--convert {
+  background: #16a34a;
+  color: #fff;
+  border-color: #16a34a;
+}
+.pd-btn--convert:hover {
+  background: #15803d;
+  border-color: #15803d;
+}
+
+body.pd-dragging,
+body.pd-dragging * {
+  user-select: none !important;
+  cursor: move !important;
+}
+
 /* Force all backgrounds, ribbons, and brand colors to render in print/PDF */
+.pd-pos, .pd-pos *,
 .fg-pages, .fg-pages *,
 .fg-page, .fg-page *,
 .fg-topband, .fg-topband *,
@@ -1262,6 +1427,37 @@ textarea.pd-input { resize: vertical; line-height: 1.5; }
   .fg-stamp__img {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  /* Erase every trace of the editing chrome — positions still apply. */
+  .pd-pos,
+  .pd-pos:hover,
+  .pd-pos:focus,
+  .pd-pos.is-selected,
+  .pd-pos.is-editing,
+  .pd-pos.is-free.is-selected,
+  .pd-pos.is-offpage {
+    outline: none !important;
+    cursor: auto !important;
+  }
+  .pd-pos__chrome,
+  .pd-modeswitch {
+    display: none !important;
+  }
+  .pd-inline,
+  .pd-inline:hover,
+  .pd-inline.is-editing {
+    background: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
+  [contenteditable] {
+    caret-color: transparent !important;
+  }
+  /* Placeholders are rendered via ::before — an empty field must not print its
+     placeholder text. */
+  .pd-inline[data-empty="true"]::before {
+    content: none !important;
   }
 }
 

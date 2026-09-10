@@ -8,6 +8,7 @@ export function LibraryModal({ onClose }: { onClose: () => void }) {
   const loadFromLibrary = useStudio((s) => s.loadFromLibrary);
   const renameInLibrary = useStudio((s) => s.renameInLibrary);
   const deleteFromLibrary = useStudio((s) => s.deleteFromLibrary);
+  const convertToInvoice = useStudio((s) => s.convertToInvoice);
 
   return (
     <div className="pd-modal-backdrop" onClick={onClose}>
@@ -44,6 +45,23 @@ export function LibraryModal({ onClose }: { onClose: () => void }) {
                     >
                       Load
                     </button>
+                    {e.doc.type === "quotation" && (
+                      <button
+                        className="pd-btn pd-btn--convert"
+                        title="Create a linked invoice from this quotation"
+                        onClick={() => {
+                          const r = convertToInvoice(e.id);
+                          if (!r) return;
+                          onClose();
+                          alert(
+                            `Invoice ${r.invoiceNumber} created from quotation ` +
+                              `${r.quotationNumber}, saved and opened.`
+                          );
+                        }}
+                      >
+                        → Invoice
+                      </button>
+                    )}
                     <button
                       className="pd-btn pd-btn--ghost"
                       onClick={() => {

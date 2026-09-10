@@ -4,6 +4,7 @@ import { useStudio } from "@/lib/store";
 import { CURRENCIES, DOC_TYPE_LABELS } from "@/lib/schema";
 import type { Currency, DocType, LetterTemplate, Numbering, WatermarkPos } from "@/lib/schema";
 import { SignatureUpload } from "@/components/brand/SignatureUpload";
+import { movedElementIds } from "@/lib/layout";
 
 export function Sidebar({
   onOpenLibrary,
@@ -27,6 +28,22 @@ export function Sidebar({
   const setLetter = useStudio((s) => s.setLetter);
   const applyLetterTemplate = useStudio((s) => s.applyLetterTemplate);
   const newDoc = useStudio((s) => s.newDoc);
+  const resetAllLayout = useStudio((s) => s.resetAllLayout);
+  const moved = movedElementIds(doc).length;
+
+  /**
+   * Switching type starts a blank document — it always has. Confirm first so a
+   * misclick can't silently discard the work in progress.
+   */
+  function onPickType(t: DocType) {
+    if (t === doc.type) return;
+    const ok = window.confirm(
+      `Start a new blank ${DOC_TYPE_LABELS[t].toLowerCase()}?\n\n` +
+        `The current ${DOC_TYPE_LABELS[doc.type].toLowerCase()} will be cleared. ` +
+        `Cancel and use “Save to library” first if you want to keep it.`
+    );
+    if (ok) setType(t);
+  }
 
   return (
     <aside className="pd-sidebar">
@@ -36,13 +53,22 @@ export function Sidebar({
           {(Object.keys(DOC_TYPE_LABELS) as DocType[]).map((t) => (
             <button
               key={t}
-              onClick={() => setType(t)}
+              onClick={() => onPickType(t)}
               className={`pd-doctype-btn${doc.type === t ? " is-active" : ""}`}
             >
               {DOC_TYPE_LABELS[t]}
             </button>
           ))}
         </div>
+        {doc.type === "quotation" && (
+          <p
+            className="pd-sb-label"
+            style={{ lineHeight: 1.5, textTransform: "none", letterSpacing: 0, marginTop: 8 }}
+          >
+            To turn this quotation into an invoice, use{" "}
+            <strong>→ Convert to Invoice</strong> in the top bar — it keeps both documents.
+          </p>
+        )}
         <button onClick={() => newDoc(doc.type)} className="pd-sb-linkbtn">
           + New blank {DOC_TYPE_LABELS[doc.type].toLowerCase()}
         </button>
@@ -177,32 +203,8 @@ export function Sidebar({
         <SliderRow label="Font size" value={doc.bands.contactFontSize} min={8} max={20} onChange={(v) => setBands({ contactFontSize: v })} unit="px" />
         <SliderRow label="Shift ← →" value={doc.bands.contactOffsetX} min={-200} max={200} onChange={(v) => setBands({ contactOffsetX: v })} unit="px" />
         <SliderRow label="Shift ↑ ↓" value={doc.bands.contactOffsetY} min={-200} max={200} onChange={(v) => setBands({ contactOffsetY: v })} unit="px" />
-        <button
-          onClick={() =>
-            setBands({
-              topHeight: 174,
-              topOffsetX: 0,
-              topOffsetY: 8,
-              topLogoLeft: 45,
-              topLogoTop: 12,
-              topLogoSize: 45,
-              topTitleRight: 83,
-              topTitleTop: 14,
-              topTitleSize: 35,
-              bottomHeight: 220,
-              bottomOffsetX: 0,
-              bottomOffsetY: 55,
-              stampSize: 137,
-              stampOffsetX: -10,
-              stampOffsetY: 7,
-              contactFontSize: 12,
-              contactOffsetX: 0,
-              contactOffsetY: 0,
-            })
-          }
-          className="pd-sb-linkbtn"
-        >
-          ↺ Reset all band controls
+        <button onClick={resetAllLayout} className="pd-sb-linkbtn" disabled={moved === 0}>
+          ↺ Reset all positions{moved > 0 ? ` (${moved} moved)` : ""}
         </button>
       </div>
 
