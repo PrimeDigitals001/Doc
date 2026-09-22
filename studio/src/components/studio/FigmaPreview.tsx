@@ -325,6 +325,32 @@ export const FigmaPreview = forwardRef<HTMLDivElement, Props>(function FigmaPrev
     (keys) => keys.map((k) => blocksByKey.get(k)).filter(Boolean) as Block[]
   );
 
+  // One free-layer host per page. Detached elements portal into the host of the
+  // page they're pinned to (see Positionable). Hosts live in state, not a ref,
+  // because a portal target has to exist at render time: the first commit
+  // mounts the hosts, the state write re-renders, and only then do the free
+  // elements move in. Callbacks are memoised per page count so React doesn't
+  // re-attach every ref on every render.
+  const [freeHosts, setFreeHosts] = useState<(HTMLElement | null)[]>([]);
+  const pageCount = pageKeys.length;
+  const hostRefs = useMemo(
+    () =>
+      Array.from({ length: pageCount }, (_, pi) => (el: HTMLElement | null) => {
+        setFreeHosts((prev) => {
+          if (prev[pi] === el) return prev;
+          const next = prev.slice();
+          next[pi] = el;
+          return next;
+        });
+      }),
+    [pageCount]
+  );
+  const freeHost = useCallback(
+    // Pagination may have shrunk since the element was pinned — clamp.
+    (page: number) => freeHosts[Math.min(Math.max(0, page), pageCount - 1)] ?? null,
+    [freeHosts, pageCount]
+  );
+
   const interactive = mode !== "preview";
 
   return (
@@ -384,6 +410,8 @@ export const FigmaPreview = forwardRef<HTMLDivElement, Props>(function FigmaPrev
               selectedId,
               editingId,
               pageIndex: pi,
+              pageCount,
+              freeHost,
               select,
               beginEdit,
             }}
@@ -397,6 +425,9 @@ export const FigmaPreview = forwardRef<HTMLDivElement, Props>(function FigmaPrev
                   if (e.target === e.currentTarget) select(null);
                 }}
               >
+                {/* Zero-height, in flow: portaled free elements are absolutely
+                    positioned, so they resolve against .fg-body, not this div. */}
+                <div className="fg-freelayer" ref={hostRefs[pi]} />
                 {renderPageBlocks(pageBlocks, doc)}
                 {isLast && <EndBlock doc={doc} />}
               </div>

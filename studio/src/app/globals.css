@@ -1397,6 +1397,17 @@ body.pd-dragging * {
   user-select: none !important;
   cursor: move !important;
 }
+/* A drag that may cross pages: the source page stops clipping and paints above
+   its siblings, so the element is visible over the gutter and the next page
+   instead of vanishing at the page edge. Screen only — never set while printing. */
+body.pd-dragging .fg-page.is-drag-source {
+  overflow: visible;
+  z-index: 10;
+}
+body.pd-dragging .fg-page.is-drop-target {
+  outline: 2px dashed #f59e0b;
+  outline-offset: -2px;
+}
 
 /* Force all backgrounds, ribbons, and brand colors to render in print/PDF */
 .pd-pos, .pd-pos *,

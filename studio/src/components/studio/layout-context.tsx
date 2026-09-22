@@ -14,6 +14,14 @@ export type LayoutCtxValue = {
   editingId: string | null;
   /** 0-based index of the page this subtree belongs to */
   pageIndex: number;
+  /** how many pages the document currently paginates to */
+  pageCount: number;
+  /**
+   * The free layer of a page: detached elements portal into it so `.fg-body`
+   * is always their containing block and they can live on any page, not just
+   * the one their parent happens to render on. null until that page mounts.
+   */
+  freeHost: (page: number) => HTMLElement | null;
   select: (id: string | null) => void;
   beginEdit: (id: string | null) => void;
 };
@@ -29,6 +37,8 @@ export const MEASURE_CTX: LayoutCtxValue = {
   selectedId: null,
   editingId: null,
   pageIndex: 0,
+  pageCount: 1,
+  freeHost: () => null,
   select: () => {},
   beginEdit: () => {},
 };

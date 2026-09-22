@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { createPortal } from "react-dom";
 import { useStudio } from "@/lib/store";
 import { capabilityFor, isDefault, readOverride } from "@/lib/layout";
 import { useLayoutCtx } from "./layout-context";
@@ -51,6 +52,42 @@ function clamp(v: number, lo: number, hi: number) {
 }
 
 /**
+ * Where `el` sits inside `body` (a page's `.fg-body`), as free-mode dx/dy/w.
+ * An absolutely positioned box still applies its own margins on top of
+ * left/top, so they're subtracted out or the element jumps by its margin.
+ */
+function positionWithin(el: HTMLElement, body: HTMLElement, scale: number) {
+  const r = el.getBoundingClientRect();
+  const b = body.getBoundingClientRect();
+  const cs = getComputedStyle(el);
+  const ml = parseFloat(cs.marginLeft) || 0;
+  const mt = parseFloat(cs.marginTop) || 0;
+  return {
+    dx: Math.round((r.left - b.left) / scale - ml),
+    dy: Math.round((r.top - b.top) / scale - mt),
+    w: Math.round(r.width / scale),
+  };
+}
+
+/** The page `el` would land on: most vertical overlap, else (in a gutter) nearest. */
+function dropPage(el: HTMLElement, pages: HTMLElement[]): HTMLElement | null {
+  const r = el.getBoundingClientRect();
+  const cy = (r.top + r.bottom) / 2;
+  let best: HTMLElement | null = null;
+  let bestScore = -Infinity;
+  for (const p of pages) {
+    const b = p.getBoundingClientRect();
+    const overlap = Math.min(r.bottom, b.bottom) - Math.max(r.top, b.top);
+    const score = overlap > 0 ? 1e6 + overlap : -Math.abs(cy - (b.top + b.bottom) / 2);
+    if (score > bestScore) {
+      best = p;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+/**
  * Wraps a document element so it can be selected and dragged on the page.
  *
  * The one rule that matters: during a drag we write `style` straight to the DOM
@@ -67,8 +104,17 @@ export function Positionable({
   baseStyle,
   children,
 }: Props) {
-  const { measuring, interactive, selectedId, editingId, pageIndex, select, beginEdit } =
-    useLayoutCtx();
+  const {
+    measuring,
+    interactive,
+    selectedId,
+    editingId,
+    pageIndex,
+    pageCount,
+    freeHost,
+    select,
+    beginEdit,
+  } = useLayoutCtx();
   const doc = useStudio((s) => s.doc);
   const setLayout = useStudio((s) => s.setLayout);
   const nudgeLayout = useStudio((s) => s.nudgeLayout);
@@ -88,12 +134,31 @@ export function Positionable({
     lx: number;
     ly: number;
     bounds: { minX: number; maxX: number; minY: number; maxY: number };
+    /** may this drag end on another page? */
+    crossPage: boolean;
+    /** the page the element started on, and every page in the column */
+    page: HTMLElement;
+    pages: HTMLElement[];
+    /** page currently highlighted as the drop target (only when ≠ `page`) */
+    target: HTMLElement | null;
   } | null>(null);
 
   const Tag = as as React.ElementType;
   const ov = readOverride(doc, id);
   const cap = capabilityFor(id);
   const free = ov.mode === "free";
+
+  // A detached element is portaled into the free layer of the page it's pinned
+  // to. That makes `.fg-body` its containing block (instead of whichever
+  // positioned ancestor — e.g. `payrow` — happens to wrap it) and is what lets
+  // it live on a page other than the one its parent renders on. Elements that
+  // repeat on every page (page number) share one override and stay put.
+  const pinnable = free && !cap.repeatsPerPage;
+  const host = pinnable ? freeHost(ov.page ?? pageIndex) : null;
+  const place = (node: React.ReactNode) => (host ? createPortal(node, host) : node);
+  // Only free (or free-able) elements may be dragged onto another page — a flow
+  // element that lands on a different page detaches on the way.
+  const crossPage = (free || cap.canDetach) && !cap.repeatsPerPage && pageCount > 1;
 
   // ---- 1. MEASUREMENT PASS: completely inert ----------------------------
   // Detached elements contribute zero height to the flow, which is what makes
@@ -121,7 +186,7 @@ export function Positionable({
 
   // ---- 2. NON-INTERACTIVE (Preview mode / print): positioned, no chrome ----
   if (!interactive || !cap.canDrag) {
-    return (
+    return place(
       <Tag className={className} style={merged}>
         {children}
       </Tag>
@@ -187,6 +252,15 @@ export function Positionable({
     const r = el.getBoundingClientRect();
     const p = page.getBoundingClientRect();
 
+    // Every page is the same width and centred, so X is always clamped to the
+    // page. Y is clamped to the page too — unless the drag may cross pages, in
+    // which case the whole page column is fair game.
+    const column = page.parentElement;
+    const pages = column
+      ? Array.from(column.querySelectorAll<HTMLElement>(":scope > .fg-page"))
+      : [page];
+    const yRef = crossPage && column ? column.getBoundingClientRect() : p;
+
     el.setPointerCapture(e.pointerId);
     drag.current = {
       pid: e.pointerId,
@@ -201,12 +275,20 @@ export function Positionable({
       bounds: {
         minX: ov.dx - (r.right - p.left - KEEP_VISIBLE) / scale,
         maxX: ov.dx + (p.right - r.left - KEEP_VISIBLE) / scale,
-        minY: ov.dy - (r.bottom - p.top - KEEP_VISIBLE) / scale,
-        maxY: ov.dy + (p.bottom - r.top - KEEP_VISIBLE) / scale,
+        minY: ov.dy - (r.bottom - yRef.top - KEEP_VISIBLE) / scale,
+        maxY: ov.dy + (yRef.bottom - r.top - KEEP_VISIBLE) / scale,
       },
+      crossPage,
+      page,
+      pages,
+      target: null,
     };
     select(id);
     document.body.classList.add("pd-dragging");
+    // Pages clip their overflow; the source page is un-clipped and raised for
+    // the duration of the drag so the element stays visible over the gutter
+    // and the neighbouring page (see globals.css).
+    if (crossPage) page.classList.add("is-drag-source");
   }
 
   function onPointerMove(e: React.PointerEvent) {
@@ -222,13 +304,26 @@ export function Positionable({
     const grid = e.altKey ? 1 : SNAP;
     d.lx = clamp(Math.round((d.baseX + ddx) / grid) * grid, d.bounds.minX, d.bounds.maxX);
     d.ly = clamp(Math.round((d.baseY + ddy) / grid) * grid, d.bounds.minY, d.bounds.maxY);
-    if (ref.current) applyLive(ref.current, d.lx, d.ly);
+    const el = ref.current;
+    if (!el) return;
+    applyLive(el, d.lx, d.ly);
+
+    if (!d.crossPage) return;
+    const over = dropPage(el, d.pages);
+    const target = over && over !== d.page ? over : null;
+    if (target !== d.target) {
+      d.target?.classList.remove("is-drop-target");
+      target?.classList.add("is-drop-target");
+      d.target = target;
+    }
   }
 
   function endDrag(e: React.PointerEvent) {
     const d = drag.current;
     drag.current = null;
     document.body.classList.remove("pd-dragging");
+    d?.page.classList.remove("is-drag-source");
+    d?.target?.classList.remove("is-drop-target");
     try {
       ref.current?.releasePointerCapture?.(e.pointerId);
     } catch {
@@ -236,7 +331,22 @@ export function Positionable({
     }
     if (!d) return;
     if (!d.moved) return; // a click, not a drag → selection only
-    setLayout(id, { dx: d.lx, dy: d.ly }); // ← the single store commit
+
+    // ← the single store commit, one of two shapes:
+    const el = ref.current;
+    const to = d.crossPage && el ? dropPage(el, d.pages) : null;
+    const toIndex = to ? d.pages.indexOf(to) : -1;
+    const body = to?.querySelector<HTMLElement>(":scope > .fg-body");
+    if (!el || !to || to === d.page || toIndex < 0 || !body) {
+      setLayout(id, { dx: d.lx, dy: d.ly }); // same page: plain move
+      return;
+    }
+    // Landed on another page: re-express the on-screen position relative to
+    // that page's body and pin the element there. A flow element can't belong
+    // to another page's flow, so it detaches as it goes (same as "⇱ Free").
+    const at = positionWithin(el, body, d.scale);
+    if (free) setLayout(id, { dx: at.dx, dy: at.dy, page: toIndex });
+    else setLayoutMode(id, "free", { ...at, page: toIndex });
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
@@ -287,19 +397,7 @@ export function Positionable({
     }
     const body = el.closest(".fg-body") as HTMLElement | null;
     if (!body) return;
-    const r = el.getBoundingClientRect();
-    const b = body.getBoundingClientRect();
-    // An absolutely positioned box still applies its own margins on top of
-    // left/top, so seed them out or the element jumps by its margin.
-    const cs = getComputedStyle(el);
-    const ml = parseFloat(cs.marginLeft) || 0;
-    const mt = parseFloat(cs.marginTop) || 0;
-    setLayoutMode(id, "free", {
-      dx: Math.round(r.left - b.left - ml),
-      dy: Math.round(r.top - b.top - mt),
-      page: pageIndex,
-      w: Math.round(r.width),
-    });
+    setLayoutMode(id, "free", { ...positionWithin(el, body, 1), page: pageIndex });
   }
 
   const cls = [
@@ -312,7 +410,7 @@ export function Positionable({
     .filter(Boolean)
     .join(" ");
 
-  return (
+  return place(
     <Tag
       ref={ref}
       className={cls}
