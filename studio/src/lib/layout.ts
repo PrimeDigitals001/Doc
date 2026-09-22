@@ -23,6 +23,11 @@ export type LayoutCapability = {
   canDrag: boolean;
   canDetach: boolean;
   canResize: false | "both" | "x" | "y";
+  /**
+   * Rendered once on EVERY page (page number). Its override is shared, so it
+   * is never pinned to a single page and can't be dragged onto another one.
+   */
+  repeatsPerPage?: boolean;
   legacy?: LegacyBinding;
 };
 
@@ -78,7 +83,7 @@ export const LAYOUT_ELEMENTS: Record<string, LayoutCapability> = {
   terms: cap("terms", "Terms & conditions", { canDetach: true, canResize: "x" }),
   thanks: cap("thanks", "Thank-you note", { canDetach: true, canResize: "x" }),
   stampRow: cap("stampRow", "Contact + stamp row", { canDetach: true, canResize: "x" }),
-  pagenum: cap("pagenum", "Page number", { canDetach: true }),
+  pagenum: cap("pagenum", "Page number", { canDetach: true, repeatsPerPage: true }),
 
   // --- letter blocks ---
   "letter-date": cap("letter-date", "Date", { canResize: "x" }),
